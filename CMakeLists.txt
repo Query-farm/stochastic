@@ -16,7 +16,11 @@ set(CMAKE_CXX_STANDARD 14)
 project(${TARGET_NAME})
 include_directories(src/include)
 
-set(EXTENSION_SOURCES src/quack_extension.cpp)
+set(EXTENSION_SOURCES src/quack_extension.cpp
+src/distribution_normal.cpp
+src/distribution_bernoulli.cpp
+src/rng_utils.cpp
+)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

@@ -1,5 +1,14 @@
 #pragma once
 #include "duckdb.hpp"
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/string_util.hpp"
+#include "duckdb/function/scalar_function.hpp"
+#include "duckdb/main/extension_util.hpp"
+#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+
+#include <boost/math/distributions.hpp>
+#include <boost/random.hpp>
+#include "rng_utils.hpp"
 namespace duckdb {
 
 // Generic template for any distribution with two parameters
@@ -171,5 +180,57 @@ void RegisterSingleParamSamplingFunction(DatabaseInstance &instance, const std::
 #define REGISTER_BERNOULLI_FUNC(instance, func_name, func_ptr, description, example, second_param)                     \
 	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example, {"p", second_param},  \
 	                                        bernoulli_param_types)
+
+// Generic sampling function template for single parameter distributions
+template <typename DistributionType, typename ReturnType>
+inline void GenericSingleParamSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &param_vector = args.data[0];
+
+	if (param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
+		if (ConstantVector::IsNull(param_vector)) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+			ConstantVector::SetNull(result, true);
+			return;
+		}
+
+		const auto param = ConstantVector::GetData<double>(param_vector)[0];
+
+		// Create distribution once and reuse for constant vectors
+		DistributionType dist(param);
+		const auto results = FlatVector::GetData<ReturnType>(result);
+
+		for (size_t i = 0; i < args.size(); i++) {
+			results[i] = static_cast<ReturnType>(dist(rng));
+		}
+
+		// Set vector type appropriately
+		if (args.size() == 1) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+		}
+		return;
+	}
+
+	// Handle non-constant vectors
+	UnaryExecutor::Execute<double, ReturnType>(param_vector, result, args.size(), [&](double param) {
+		DistributionType dist(param);
+		return static_cast<ReturnType>(dist(rng));
+	});
+}
+
+// Generic sampling function template for two parameter distributions
+template <typename DistributionType, typename ReturnType>
+inline void GenericTwoParamSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &param1_vector = args.data[0];
+	auto &param2_vector = args.data[1];
+
+	BinaryExecutor::Execute<double, double, ReturnType>(param1_vector, param2_vector, result, args.size(),
+	                                                    [&](double param1, double param2) {
+		                                                    DistributionType dist(param1, param2);
+		                                                    return static_cast<ReturnType>(dist(rng));
+	                                                    });
+}
+
+void LoadDistributionNormal(DatabaseInstance &instance);
+void LoadDistributionBernoulli(DatabaseInstance &instance);
 
 } // namespace duckdb
