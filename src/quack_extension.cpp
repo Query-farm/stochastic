@@ -16,6 +16,7 @@ namespace duckdb {
 static void LoadInternal(DatabaseInstance &instance) {
 	LoadDistributionBernoulli(instance);
 	LoadDistributionNormal(instance);
+	LoadDistributionBinomial(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {

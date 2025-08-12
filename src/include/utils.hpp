@@ -9,6 +9,7 @@
 #include <boost/math/distributions.hpp>
 #include <boost/random.hpp>
 #include "rng_utils.hpp"
+
 namespace duckdb {
 
 // Generic template for any distribution with two parameters
@@ -242,6 +243,16 @@ void RegisterStatisticFunction(DatabaseInstance &instance, const std::string &na
 	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example, {"p", second_param},  \
 	                                        bernoulli_param_types)
 
+// Macro to register binomial distribution functions with less boilerplate
+#define REGISTER_BINOMIAL_FUNC(instance, func_name, func_ptr, description, example, third_param)                       \
+	RegisterDistributionFunction(instance, func_name, func_ptr, description, example, {"n", "p", third_param},         \
+	                             binomial_param_types)
+
+// Macro to register binomial distribution statistic functions with less boilerplate
+#define REGISTER_BINOMIAL_STATISTIC_FUNC(instance, func_name, func_ptr, description, example)                          \
+	RegisterStatisticFunction(instance, func_name, func_ptr, description, example, {"n", "p"},                         \
+	                          binomial_statistic_param_types)
+
 // Generic sampling function template for single parameter distributions
 template <typename DistributionType, typename ReturnType>
 inline void GenericSingleParamSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -293,5 +304,6 @@ inline void GenericTwoParamSampleFunc(DataChunk &args, ExpressionState &state, V
 
 void LoadDistributionNormal(DatabaseInstance &instance);
 void LoadDistributionBernoulli(DatabaseInstance &instance);
+void LoadDistributionBinomial(DatabaseInstance &instance);
 
 } // namespace duckdb
