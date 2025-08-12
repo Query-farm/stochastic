@@ -95,6 +95,68 @@ DEFINE_DISTRIBUTION_FUNC(NormalLogCdfComplementFunc, boost::math::normal_distrib
 DEFINE_DISTRIBUTION_FUNC(NormalQuantileComplementFunc, boost::math::normal_distribution<double>,
                          boost::math::quantile(boost::math::complement(dist, x)))
 
+// Bernoulli distribution functions using single parameter (p)
+// Template for single-parameter distributions
+template <typename Distribution, typename Operation>
+inline void SingleParameterDistributionFunc(DataChunk &args, ExpressionState &state, Vector &result, Operation op) {
+	auto &param_vector = args.data[0];
+	auto &x_vector = args.data[1];
+
+	// If parameter is constant, optimize the computation
+	if (param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
+		if (ConstantVector::IsNull(param_vector)) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+			ConstantVector::SetNull(result, true);
+			return;
+		}
+		const auto param = ConstantVector::GetData<double>(param_vector)[0];
+		Distribution dist(param);
+		UnaryExecutor::Execute<double, double>(x_vector, result, args.size(), [&](double x) { return op(dist, x); });
+	} else {
+		BinaryExecutor::Execute<double, double, double>(param_vector, x_vector, result, args.size(),
+		                                                [&](double param, double x) {
+			                                                Distribution dist(param);
+			                                                return op(dist, x);
+		                                                });
+	}
+}
+
+// Generic macro to define single-parameter distribution functions
+#define DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(func_name, distribution_type, boost_operation)                           \
+	inline void func_name(DataChunk &args, ExpressionState &state, Vector &result) {                                   \
+		SingleParameterDistributionFunc<distribution_type>(args, state, result,                                        \
+		                                                   [](const auto &dist, auto x) { return boost_operation; });  \
+	}
+
+// Generate Bernoulli distribution functions
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliPdfFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::pdf(dist, x))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliLogPdfFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::logpdf(dist, x))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliCdfFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::cdf(dist, x))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliLogCdfFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::logcdf(dist, x))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliQuantileFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::quantile(dist, x))
+
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliCdfComplementFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::cdf(boost::math::complement(dist, x)))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliLogCdfComplementFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::logcdf(boost::math::complement(dist, x)))
+DEFINE_SINGLE_PARAM_DISTRIBUTION_FUNC(BernoulliQuantileComplementFunc, boost::math::bernoulli_distribution<double>,
+                                      boost::math::quantile(boost::math::complement(dist, x)))
+
+// Bernoulli sampling function
+inline void BernoulliSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &p_vector = args.data[0];
+
+	UnaryExecutor::Execute<double, double>(p_vector, result, args.size(), [&](double p) {
+		boost::random::bernoulli_distribution<double> dist(p);
+		return static_cast<double>(dist(rng));
+	});
+}
+
 /*
 // Example: To add Gamma distribution, you would just do:
 DEFINE_DISTRIBUTION_FUNC(GammaPdfFunc, boost::math::gamma_distribution<double>, pdf)
@@ -133,6 +195,20 @@ ScalarFunction CreateBinaryFunction(const std::string &name, FuncType func) {
 	                      FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr);
 }
 
+// Helper function to create a single-parameter distribution function
+template <typename FuncType>
+ScalarFunction CreateTwoParameterDistributionFunction(const std::string &name, FuncType func) {
+	return ScalarFunction(name, {LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::DOUBLE, func);
+}
+
+// Helper function to create a unary scalar function (for single-parameter sampling)
+template <typename FuncType>
+ScalarFunction CreateUnaryFunction(const std::string &name, FuncType func) {
+	return ScalarFunction(name, {LogicalType::DOUBLE}, LogicalType::DOUBLE, func, nullptr, nullptr, nullptr, nullptr,
+	                      LogicalTypeId::INVALID, FunctionStability::VOLATILE,
+	                      FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr);
+}
+
 // Helper function to register a three-parameter distribution function with description
 template <typename FuncType>
 void RegisterDistributionFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
@@ -165,16 +241,57 @@ void RegisterSamplingFunction(DatabaseInstance &instance, const std::string &nam
 	ExtensionUtil::RegisterFunction(instance, info);
 }
 
+// Helper function to register a single-parameter distribution function with description
+template <typename FuncType>
+void RegisterSingleParamDistributionFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
+                                             const std::string &description, const std::string &example,
+                                             const duckdb::vector<std::string> &param_names,
+                                             const duckdb::vector<LogicalType> &param_types) {
+	CreateScalarFunctionInfo info(CreateTwoParameterDistributionFunction(name, func));
+	FunctionDescription desc;
+	desc.description = description;
+	desc.examples.push_back(example);
+	desc.parameter_names = param_names;
+	desc.parameter_types = param_types;
+	info.descriptions.push_back(desc);
+	ExtensionUtil::RegisterFunction(instance, info);
+}
+
+// Helper function to register a single-parameter sampling function with description
+template <typename FuncType>
+void RegisterSingleParamSamplingFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
+                                         const std::string &description, const std::string &example,
+                                         const duckdb::vector<std::string> &param_names,
+                                         const duckdb::vector<LogicalType> &param_types) {
+	CreateScalarFunctionInfo info(CreateUnaryFunction(name, func));
+	FunctionDescription desc;
+	desc.description = description;
+	desc.examples.push_back(example);
+	desc.parameter_names = param_names;
+	desc.parameter_types = param_types;
+	info.descriptions.push_back(desc);
+	ExtensionUtil::RegisterFunction(instance, info);
+}
+
 // Macro to register normal distribution functions with less boilerplate
 #define REGISTER_NORMAL_FUNC(instance, func_name, func_ptr, description, example, third_param)                         \
 	RegisterDistributionFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev", third_param}, \
 	                             normal_param_types)
+
+// Macro to register Bernoulli distribution functions with less boilerplate
+#define REGISTER_BERNOULLI_FUNC(instance, func_name, func_ptr, description, example, second_param)                     \
+	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example, {"p", second_param},  \
+	                                        bernoulli_param_types)
 
 static void LoadInternal(DatabaseInstance &instance) {
 	// Normal distribution parameter types (reused for all functions)
 	const duckdb::vector<LogicalType> normal_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE,
 	                                                        LogicalType::DOUBLE};
 	const duckdb::vector<LogicalType> normal_sample_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE};
+
+	// Bernoulli distribution parameter types
+	const duckdb::vector<LogicalType> bernoulli_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE};
+	const duckdb::vector<LogicalType> bernoulli_sample_param_types = {LogicalType::DOUBLE};
 
 	REGISTER_NORMAL_FUNC(
 	    instance, "normal_pdf", NormalPdfFunc,
@@ -212,6 +329,58 @@ static void LoadInternal(DatabaseInstance &instance) {
 	    instance, "normal_sample", NormalRandFunc,
 	    "Generates random samples from the normal distribution with specified mean and standard deviation.",
 	    "normal_sample(0.0, 1.0)", {"mean", "stddev"}, normal_sample_param_types);
+
+	// Register Bernoulli distribution functions
+	REGISTER_BERNOULLI_FUNC(instance, "bernoulli_pdf", BernoulliPdfFunc,
+	                        "Computes the probability mass function (PMF) of the Bernoulli distribution. Returns the "
+	                        "probability of getting value x (0 or 1) for a Bernoulli trial with success probability p.",
+	                        "bernoulli_pdf(0.3, 1)", "x");
+
+	REGISTER_BERNOULLI_FUNC(
+	    instance, "bernoulli_cdf", BernoulliCdfFunc,
+	    "Computes the cumulative distribution function (CDF) of the Bernoulli distribution. Returns the probability "
+	    "that X ≤ x for a Bernoulli distribution with success probability p.",
+	    "bernoulli_cdf(0.3, 1)", "x");
+
+	REGISTER_BERNOULLI_FUNC(instance, "bernoulli_quantile", BernoulliQuantileFunc,
+	                        "Computes the quantile function (inverse CDF) of the Bernoulli distribution. Returns the "
+	                        "smallest value x such that P(X ≤ x) ≥ p.",
+	                        "bernoulli_quantile(0.3, 0.5)", "p");
+
+	// Log functions
+	REGISTER_BERNOULLI_FUNC(
+	    instance, "bernoulli_log_pdf", BernoulliLogPdfFunc,
+	    "Computes the natural logarithm of the probability mass function (log-PMF) of the Bernoulli distribution. "
+	    "Useful for numerical stability when dealing with very small probabilities.",
+	    "bernoulli_log_pdf(0.3, 1)", "x");
+
+	REGISTER_BERNOULLI_FUNC(instance, "bernoulli_log_cdf", BernoulliLogCdfFunc,
+	                        "Computes the natural logarithm of the cumulative distribution function (log-CDF) of the "
+	                        "Bernoulli distribution. Useful for numerical stability in extreme tail calculations.",
+	                        "bernoulli_log_cdf(0.3, 1)", "x");
+
+	// Complement functions
+	REGISTER_BERNOULLI_FUNC(instance, "bernoulli_cdf_complement", BernoulliCdfComplementFunc,
+	                        "Computes the complementary cumulative distribution function (1 - CDF) of the Bernoulli "
+	                        "distribution. Returns the probability that X > x, equivalent to the survival function.",
+	                        "bernoulli_cdf_complement(0.3, 0)", "x");
+
+	REGISTER_BERNOULLI_FUNC(
+	    instance, "bernoulli_log_cdf_complement", BernoulliLogCdfComplementFunc,
+	    "Computes the natural logarithm of the complementary cumulative distribution function of the Bernoulli "
+	    "distribution. Useful for numerical stability in tail probability calculations.",
+	    "bernoulli_log_cdf_complement(0.3, 0)", "x");
+
+	REGISTER_BERNOULLI_FUNC(instance, "bernoulli_quantile_complement", BernoulliQuantileComplementFunc,
+	                        "Computes the complementary quantile function of the Bernoulli distribution. Returns the "
+	                        "value x such that P(X > x) = p, useful for computing upper tail quantiles.",
+	                        "bernoulli_quantile_complement(0.3, 0.3)", "p");
+
+	// Bernoulli sampling function
+	RegisterSingleParamSamplingFunction(instance, "bernoulli_sample", BernoulliSampleFunc,
+	                                    "Generates random samples from the Bernoulli distribution with success "
+	                                    "probability p. Returns 1 with probability p, 0 with probability (1-p).",
+	                                    "bernoulli_sample(0.3)", {"p"}, bernoulli_sample_param_types);
 }
 
 void QuackExtension::Load(DuckDB &db) {
