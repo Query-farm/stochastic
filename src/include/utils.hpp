@@ -78,6 +78,46 @@ inline void SingleParameterDistributionFunc(DataChunk &args, ExpressionState &st
 		                                                   [](const auto &dist, auto x) { return boost_operation; });  \
 	}
 
+// Template for distribution statistics functions (no x parameter, just distribution parameters)
+template <typename Distribution, typename Operation>
+inline void TwoParameterStatisticFunc(DataChunk &args, ExpressionState &state, Vector &result, Operation op) {
+	auto &param1_vector = args.data[0];
+	auto &param2_vector = args.data[1];
+
+	// If these parameters are constant vectors they should be treated as such.
+	if (param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
+	    param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
+
+		if (ConstantVector::IsNull(param1_vector) || ConstantVector::IsNull(param2_vector)) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+			ConstantVector::SetNull(result, true);
+			return;
+		}
+		const auto param1 = ConstantVector::GetData<double>(param1_vector)[0];
+		const auto param2 = ConstantVector::GetData<double>(param2_vector)[0];
+		Distribution dist(param1, param2);
+		auto stat_value = op(dist);
+
+		result.SetVectorType(VectorType::CONSTANT_VECTOR);
+		auto result_data = ConstantVector::GetData<double>(result);
+		result_data[0] = stat_value;
+		return;
+	}
+
+	BinaryExecutor::Execute<double, double, double>(param1_vector, param2_vector, result, args.size(),
+	                                                [&](double param1, double param2) {
+		                                                Distribution dist(param1, param2);
+		                                                return op(dist);
+	                                                });
+}
+
+// Generic macro to define distribution statistic functions
+#define DEFINE_DISTRIBUTION_STATISTIC_FUNC(func_name, distribution_type, boost_operation)                              \
+	inline void func_name(DataChunk &args, ExpressionState &state, Vector &result) {                                   \
+		TwoParameterStatisticFunc<distribution_type>(args, state, result,                                              \
+		                                             [](const auto &dist) { return boost_operation; });                \
+	}
+
 // Helper function to create a scalar function with consistent signature
 template <typename FuncType>
 ScalarFunction CreateThreeParameterDistributionFunction(const std::string &name, FuncType func) {
@@ -171,10 +211,31 @@ void RegisterSingleParamSamplingFunction(DatabaseInstance &instance, const std::
 	ExtensionUtil::RegisterFunction(instance, info);
 }
 
+// Helper function to register a two-parameter statistic function with description
+template <typename FuncType>
+void RegisterStatisticFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
+                               const std::string &description, const std::string &example,
+                               const duckdb::vector<std::string> &param_names,
+                               const duckdb::vector<LogicalType> &param_types) {
+	CreateScalarFunctionInfo info(CreateBinaryFunction(name, func));
+	FunctionDescription desc;
+	desc.description = description;
+	desc.examples.push_back(example);
+	desc.parameter_names = param_names;
+	desc.parameter_types = param_types;
+	info.descriptions.push_back(desc);
+	ExtensionUtil::RegisterFunction(instance, info);
+}
+
 // Macro to register normal distribution functions with less boilerplate
 #define REGISTER_NORMAL_FUNC(instance, func_name, func_ptr, description, example, third_param)                         \
 	RegisterDistributionFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev", third_param}, \
 	                             normal_param_types)
+
+// Macro to register normal distribution statistic functions with less boilerplate
+#define REGISTER_NORMAL_STATISTIC_FUNC(instance, func_name, func_ptr, description, example)                            \
+	RegisterStatisticFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev"},                 \
+	                          normal_statistic_param_types)
 
 // Macro to register Bernoulli distribution functions with less boilerplate
 #define REGISTER_BERNOULLI_FUNC(instance, func_name, func_ptr, description, example, second_param)                     \
