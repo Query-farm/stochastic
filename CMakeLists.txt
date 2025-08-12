@@ -21,6 +21,8 @@ src/distribution_normal.cpp
 src/distribution_bernoulli.cpp
 src/distribution_binomial.cpp
 src/distribution_exponential.cpp
+src/distribution_lognormal.cpp
+src/distribution_logistic.cpp
 src/rng_utils.cpp
 )
 

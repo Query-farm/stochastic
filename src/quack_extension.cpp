@@ -18,6 +18,8 @@ static void LoadInternal(DatabaseInstance &instance) {
 	LoadDistributionNormal(instance);
 	LoadDistributionBinomial(instance);
 	LoadDistributionExponential(instance);
+	LoadDistributionLogNormal(instance);
+	LoadDistributionLogistic(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {

@@ -263,6 +263,26 @@ void RegisterStatisticFunction(DatabaseInstance &instance, const std::string &na
 	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example, {"lambda"},           \
 	                                        exponential_statistic_param_types)
 
+// Macro to register log normal distribution functions with less boilerplate
+#define REGISTER_LOGNORMAL_FUNC(instance, func_name, func_ptr, description, example, third_param)                      \
+	RegisterDistributionFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev", third_param}, \
+	                             lognormal_param_types)
+
+// Macro to register log normal distribution statistic functions with less boilerplate
+#define REGISTER_LOGNORMAL_STATISTIC_FUNC(instance, func_name, func_ptr, description, example)                         \
+	RegisterStatisticFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev"},                 \
+	                          lognormal_statistic_param_types)
+
+// Macro to register logistic distribution functions with less boilerplate
+#define REGISTER_LOGISTIC_FUNC(instance, func_name, func_ptr, description, example, third_param)                       \
+	RegisterDistributionFunction(instance, func_name, func_ptr, description, example,                                  \
+	                             {"location", "scale", third_param}, logistic_param_types)
+
+// Macro to register logistic distribution statistic functions with less boilerplate
+#define REGISTER_LOGISTIC_STATISTIC_FUNC(instance, func_name, func_ptr, description, example)                          \
+	RegisterStatisticFunction(instance, func_name, func_ptr, description, example, {"location", "scale"},              \
+	                          logistic_statistic_param_types)
+
 // Generic sampling function template for single parameter distributions
 template <typename DistributionType, typename ReturnType>
 inline void GenericSingleParamSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -316,5 +336,7 @@ void LoadDistributionNormal(DatabaseInstance &instance);
 void LoadDistributionBernoulli(DatabaseInstance &instance);
 void LoadDistributionBinomial(DatabaseInstance &instance);
 void LoadDistributionExponential(DatabaseInstance &instance);
+void LoadDistributionLogNormal(DatabaseInstance &instance);
+void LoadDistributionLogistic(DatabaseInstance &instance);
 
 } // namespace duckdb
