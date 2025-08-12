@@ -20,6 +20,7 @@ set(EXTENSION_SOURCES src/quack_extension.cpp
 src/distribution_normal.cpp
 src/distribution_bernoulli.cpp
 src/distribution_binomial.cpp
+src/distribution_exponential.cpp
 src/rng_utils.cpp
 )
 

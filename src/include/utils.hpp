@@ -253,6 +253,16 @@ void RegisterStatisticFunction(DatabaseInstance &instance, const std::string &na
 	RegisterStatisticFunction(instance, func_name, func_ptr, description, example, {"n", "p"},                         \
 	                          binomial_statistic_param_types)
 
+// Macro to register exponential distribution functions with less boilerplate
+#define REGISTER_EXPONENTIAL_FUNC(instance, func_name, func_ptr, description, example, second_param)                   \
+	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example,                       \
+	                                        {"lambda", second_param}, exponential_param_types)
+
+// Macro to register exponential distribution statistic functions with less boilerplate
+#define REGISTER_EXPONENTIAL_STATISTIC_FUNC(instance, func_name, func_ptr, description, example)                       \
+	RegisterSingleParamDistributionFunction(instance, func_name, func_ptr, description, example, {"lambda"},           \
+	                                        exponential_statistic_param_types)
+
 // Generic sampling function template for single parameter distributions
 template <typename DistributionType, typename ReturnType>
 inline void GenericSingleParamSampleFunc(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -305,5 +315,6 @@ inline void GenericTwoParamSampleFunc(DataChunk &args, ExpressionState &state, V
 void LoadDistributionNormal(DatabaseInstance &instance);
 void LoadDistributionBernoulli(DatabaseInstance &instance);
 void LoadDistributionBinomial(DatabaseInstance &instance);
+void LoadDistributionExponential(DatabaseInstance &instance);
 
 } // namespace duckdb
