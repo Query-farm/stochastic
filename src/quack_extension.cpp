@@ -8,49 +8,42 @@
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include <boost/math/distributions.hpp>
+#include <boost/random.hpp>
+#include <random>
+#include <thread>
 
 namespace duckdb {
 
-// Template function for normal distribution operations
-template <typename Operation>
-inline void NormalDistributionFunc(DataChunk &args, ExpressionState &state, Vector &result, Operation op) {
-	auto &mean_vector = args.data[0];
-	auto &stddev_vector = args.data[1];
-	auto &x_vector = args.data[2];
+// Global seed for all RNG streams
+constexpr unsigned int GLOBAL_SEED = 12345;
 
-	TernaryExecutor::Execute<double, double, double, double>(
-	    mean_vector, stddev_vector, x_vector, result, args.size(), 
-	    [&](double mean, double stddev, double x) {
-		    boost::math::normal_distribution<double> dist(mean, stddev);
-		    return op(dist, x);
-	    });
+// Map from std::thread::id to fixed thread index
+std::unordered_map<std::thread::id, unsigned int> thread_id_map;
+std::mutex thread_id_map_mutex;
+unsigned int next_thread_index = 0;
+
+unsigned int get_thread_index() {
+	auto tid = std::this_thread::get_id();
+	std::lock_guard<std::mutex> lock(thread_id_map_mutex);
+	auto it = thread_id_map.find(tid);
+	if (it == thread_id_map.end()) {
+		unsigned int idx = next_thread_index++;
+		thread_id_map[tid] = idx;
+		return idx;
+	}
+	return it->second;
 }
 
-// Specific function implementations using the template
-inline void NormalPdfFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	NormalDistributionFunc(args, state, result, 
-	    [](const auto &dist, double x) { return boost::math::pdf(dist, x); });
-}
+thread_local boost::random::mt19937 rng = [] {
+	unsigned int tidx = get_thread_index();
+	std::seed_seq seq {GLOBAL_SEED, tidx};
+	std::vector<uint32_t> seed_data(1);
+	seq.generate(seed_data.begin(), seed_data.end());
 
-inline void NormalLogPdfFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	NormalDistributionFunc(args, state, result, 
-	    [](const auto &dist, double x) { return boost::math::logpdf(dist, x); });
-}
-
-inline void NormalCdfFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	NormalDistributionFunc(args, state, result, 
-	    [](const auto &dist, double x) { return boost::math::cdf(dist, x); });
-}
-
-inline void NormalLogCdfFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	NormalDistributionFunc(args, state, result, 
-	    [](const auto &dist, double x) { return boost::math::logcdf(dist, x); });
-}
-
-inline void NormalQuantileFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	NormalDistributionFunc(args, state, result, 
-	    [](const auto &dist, double p) { return boost::math::quantile(dist, p); });
-}
+	boost::random::mt19937 local_rng;
+	local_rng.seed(seed_data[0]);
+	return local_rng;
+}();
 
 // Generic template for any distribution with two parameters
 template <typename Distribution, typename Operation>
@@ -59,45 +52,177 @@ inline void TwoParameterDistributionFunc(DataChunk &args, ExpressionState &state
 	auto &param2_vector = args.data[1];
 	auto &x_vector = args.data[2];
 
-	TernaryExecutor::Execute<double, double, double, double>(
-	    param1_vector, param2_vector, x_vector, result, args.size(), 
-	    [&](double param1, double param2, double x) {
-		    Distribution dist(param1, param2);
-		    return op(dist, x);
-	    });
+	// If these parameters are constant vectors they should be treated as such.
+	if (param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
+	    param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
+
+		if (ConstantVector::IsNull(param1_vector) || ConstantVector::IsNull(param2_vector)) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+			ConstantVector::SetNull(result, true);
+			return;
+		}
+		const auto param1 = ConstantVector::GetData<double>(param1_vector)[0];
+		const auto param2 = ConstantVector::GetData<double>(param2_vector)[0];
+		Distribution dist(param1, param2);
+		UnaryExecutor::Execute<double, double>(x_vector, result, args.size(), [&](double x) { return op(dist, x); });
+	}
+
+	TernaryExecutor::Execute<double, double, double, double>(param1_vector, param2_vector, x_vector, result,
+	                                                         args.size(), [&](double param1, double param2, double x) {
+		                                                         Distribution dist(param1, param2);
+		                                                         return op(dist, x);
+	                                                         });
+}
+
+// Generic macro to define distribution functions for any distribution type
+#define DEFINE_DISTRIBUTION_FUNC(func_name, distribution_type, boost_operation)                                        \
+	inline void func_name(DataChunk &args, ExpressionState &state, Vector &result) {                                   \
+		TwoParameterDistributionFunc<distribution_type>(args, state, result,                                           \
+		                                                [](const auto &dist, auto x) { return boost_operation; });     \
+	}
+
+// Generate all normal distribution functions using the macro
+DEFINE_DISTRIBUTION_FUNC(NormalPdfFunc, boost::math::normal_distribution<double>, boost::math::pdf(dist, x))
+DEFINE_DISTRIBUTION_FUNC(NormalLogPdfFunc, boost::math::normal_distribution<double>, boost::math::logpdf(dist, x))
+DEFINE_DISTRIBUTION_FUNC(NormalCdfFunc, boost::math::normal_distribution<double>, boost::math::cdf(dist, x))
+DEFINE_DISTRIBUTION_FUNC(NormalLogCdfFunc, boost::math::normal_distribution<double>, boost::math::logcdf(dist, x))
+DEFINE_DISTRIBUTION_FUNC(NormalQuantileFunc, boost::math::normal_distribution<double>, boost::math::quantile(dist, x))
+
+DEFINE_DISTRIBUTION_FUNC(NormalCdfComplementFunc, boost::math::normal_distribution<double>,
+                         boost::math::cdf(boost::math::complement(dist, x)))
+DEFINE_DISTRIBUTION_FUNC(NormalLogCdfComplementFunc, boost::math::normal_distribution<double>,
+                         boost::math::logcdf(boost::math::complement(dist, x)))
+DEFINE_DISTRIBUTION_FUNC(NormalQuantileComplementFunc, boost::math::normal_distribution<double>,
+                         boost::math::quantile(boost::math::complement(dist, x)))
+
+/*
+// Example: To add Gamma distribution, you would just do:
+DEFINE_DISTRIBUTION_FUNC(GammaPdfFunc, boost::math::gamma_distribution<double>, pdf)
+DEFINE_DISTRIBUTION_FUNC(GammaCdfFunc, boost::math::gamma_distribution<double>, cdf)
+// etc.
+*/
+
+// Normal distribution sampling functions using boost::random
+// These functions generate random samples from a normal distribution with given parameters
+
+// NormalRandFunc: Generate random samples from Normal(mean, stddev)
+// Uses thread-local random number generator for performance
+inline void NormalRandFunc(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &mean_vector = args.data[0];
+	auto &stddev_vector = args.data[1];
+
+	BinaryExecutor::Execute<double, double, double>(mean_vector, stddev_vector, result, args.size(),
+	                                                [&](double mean, double stddev) {
+		                                                boost::random::normal_distribution<double> dist(mean, stddev);
+		                                                return dist(rng);
+	                                                });
 }
 
 // Helper function to create a scalar function with consistent signature
 template <typename FuncType>
-ScalarFunction CreateDistributionFunction(const std::string &name, FuncType func) {
-	return ScalarFunction(name, 
-	                     {LogicalType::DOUBLE, LogicalType::DOUBLE, LogicalType::DOUBLE},
-	                     LogicalType::DOUBLE, 
-	                     func);
+ScalarFunction CreateThreeParameterDistributionFunction(const std::string &name, FuncType func) {
+	return ScalarFunction(name, {LogicalType::DOUBLE, LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::DOUBLE,
+	                      func);
 }
 
+// Helper function to create a binary scalar function (for sampling without seed)
+template <typename FuncType>
+ScalarFunction CreateBinaryFunction(const std::string &name, FuncType func) {
+	return ScalarFunction(name, {LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::DOUBLE, func, nullptr, nullptr,
+	                      nullptr, nullptr, LogicalTypeId::INVALID, FunctionStability::VOLATILE,
+	                      FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr);
+}
+
+// Helper function to register a three-parameter distribution function with description
+template <typename FuncType>
+void RegisterDistributionFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
+                                  const std::string &description, const std::string &example,
+                                  const duckdb::vector<std::string> &param_names,
+                                  const duckdb::vector<LogicalType> &param_types) {
+	CreateScalarFunctionInfo info(CreateThreeParameterDistributionFunction(name, func));
+	FunctionDescription desc;
+	desc.description = description;
+	desc.examples.push_back(example);
+	desc.parameter_names = param_names;
+	desc.parameter_types = param_types;
+	info.descriptions.push_back(desc);
+	ExtensionUtil::RegisterFunction(instance, info);
+}
+
+// Helper function to register a two-parameter sampling function with description
+template <typename FuncType>
+void RegisterSamplingFunction(DatabaseInstance &instance, const std::string &name, FuncType func,
+                              const std::string &description, const std::string &example,
+                              const duckdb::vector<std::string> &param_names,
+                              const duckdb::vector<LogicalType> &param_types) {
+	CreateScalarFunctionInfo info(CreateBinaryFunction(name, func));
+	FunctionDescription desc;
+	desc.description = description;
+	desc.examples.push_back(example);
+	desc.parameter_names = param_names;
+	desc.parameter_types = param_types;
+	info.descriptions.push_back(desc);
+	ExtensionUtil::RegisterFunction(instance, info);
+}
+
+// Macro to register normal distribution functions with less boilerplate
+#define REGISTER_NORMAL_FUNC(instance, func_name, func_ptr, description, example, third_param)                         \
+	RegisterDistributionFunction(instance, func_name, func_ptr, description, example, {"mean", "stddev", third_param}, \
+	                             normal_param_types)
+
 static void LoadInternal(DatabaseInstance &instance) {
-	// Register normal distribution functions using the template helper
-	ExtensionUtil::RegisterFunction(instance, CreateDistributionFunction("normal_pdf", NormalPdfFunc));
-	ExtensionUtil::RegisterFunction(instance, CreateDistributionFunction("normal_logpdf", NormalLogPdfFunc));
-	ExtensionUtil::RegisterFunction(instance, CreateDistributionFunction("normal_cdf", NormalCdfFunc));
-	ExtensionUtil::RegisterFunction(instance, CreateDistributionFunction("normal_logcdf", NormalLogCdfFunc));
-	ExtensionUtil::RegisterFunction(instance, CreateDistributionFunction("normal_quantile", NormalQuantileFunc));
+	// Normal distribution parameter types (reused for all functions)
+	const duckdb::vector<LogicalType> normal_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE,
+	                                                        LogicalType::DOUBLE};
+	const duckdb::vector<LogicalType> normal_sample_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE};
+
+	REGISTER_NORMAL_FUNC(
+	    instance, "normal_pdf", NormalPdfFunc,
+	    "Computes the probability density function (PDF) of the normal distribution. Returns the probability density "
+	    "at point x for a normal distribution with specified mean and standard deviation.",
+	    "normal_pdf(0.0, 1.0, 0.5)", "x");
+
+	REGISTER_NORMAL_FUNC(instance, "normal_log_pdf", NormalLogPdfFunc,
+	                     "Computes the natural logarithm of the probability density function (log-PDF) of the normal "
+	                     "distribution. Useful for numerical stability when dealing with very small probabilities.",
+	                     "normal_log_pdf(0.0, 1.0, 0.5)", "x");
+
+	REGISTER_NORMAL_FUNC(instance, "normal_cdf", NormalCdfFunc,
+	                     "Computes the cumulative distribution function (CDF) of the normal distribution. Returns the "
+	                     "probability that a random variable X is less than or equal to x.",
+	                     "normal_cdf(0.0, 1.0, 0.5)", "x");
+
+	REGISTER_NORMAL_FUNC(instance, "normal_cdf_complement", NormalCdfComplementFunc,
+	                     "Computes the complementary cumulative distribution function (1 - CDF) of the normal "
+	                     "distribution. Returns the probability that X > x, equivalent to the survival function.",
+	                     "normal_cdf_complement(0.0, 1.0, 0.5)", "x");
+
+	REGISTER_NORMAL_FUNC(instance, "normal_quantile", NormalQuantileFunc,
+	                     "Computes the quantile function (inverse CDF) of the normal distribution. Returns the value x "
+	                     "such that P(X ≤ x) = p, where p is the cumulative probability.",
+	                     "normal_quantile(0.0, 1.0, 0.5)", "p");
+
+	REGISTER_NORMAL_FUNC(instance, "normal_quantile_complement", NormalQuantileComplementFunc,
+	                     "Computes the complementary quantile function of the normal distribution. Returns the value x "
+	                     "such that P(X > x) = p, useful for computing upper tail quantiles.",
+	                     "normal_quantile_complement(0.0, 1.0, 0.5)", "p");
+
+	// Sampling function
+	RegisterSamplingFunction(
+	    instance, "normal_sample", NormalRandFunc,
+	    "Generates random samples from the normal distribution with specified mean and standard deviation.",
+	    "normal_sample(0.0, 1.0)", {"mean", "stddev"}, normal_sample_param_types);
 }
 
 void QuackExtension::Load(DuckDB &db) {
 	LoadInternal(*db.instance);
 }
 std::string QuackExtension::Name() {
-	return "quack";
+	return "stochastic";
 }
 
 std::string QuackExtension::Version() const {
-#ifdef EXT_VERSION_QUACK
-	return EXT_VERSION_QUACK;
-#else
-	return "";
-#endif
+	return "0.0.1";
 }
 
 } // namespace duckdb

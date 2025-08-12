@@ -1,6 +1,7 @@
 {
         "dependencies": [
-                "boost-math"
+                "boost-math",
+                "boost-random"
         ],
         "vcpkg-configuration": {
                 "overlay-ports": [
