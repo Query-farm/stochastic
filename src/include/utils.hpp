@@ -325,6 +325,32 @@ inline void GenericTwoParamSampleFunc(DataChunk &args, ExpressionState &state, V
 	auto &param1_vector = args.data[0];
 	auto &param2_vector = args.data[1];
 
+	if (param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
+	    param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
+		if (ConstantVector::IsNull(param1_vector) || ConstantVector::IsNull(param2_vector)) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+			ConstantVector::SetNull(result, true);
+			return;
+		}
+
+		const auto param1 = ConstantVector::GetData<double>(param1_vector)[0];
+		const auto param2 = ConstantVector::GetData<double>(param2_vector)[0];
+
+		// Create distribution once and reuse for constant vectors
+		DistributionType dist(param1, param2);
+		const auto results = FlatVector::GetData<ReturnType>(result);
+
+		for (size_t i = 0; i < args.size(); i++) {
+			results[i] = static_cast<ReturnType>(dist(rng));
+		}
+
+		// Set vector type appropriately
+		if (args.size() == 1) {
+			result.SetVectorType(VectorType::CONSTANT_VECTOR);
+		}
+		return;
+	}
+
 	BinaryExecutor::Execute<double, double, ReturnType>(param1_vector, param2_vector, result, args.size(),
 	                                                    [&](double param1, double param2) {
 		                                                    DistributionType dist(param1, param2);
