@@ -1,3 +1,19 @@
+/*
+ * Normal Distribution Functions for DuckDB
+ *
+ * This file implements all normal distribution-related scalar functions including:
+ * - Probability density function (PDF) and log-PDF
+ * - Cumulative distribution function (CDF) and log-CDF
+ * - Complementary CDF functions (survival functions)
+ * - Quantile functions (inverse CDF)
+ * - Distribution properties (mean, variance, skewness, etc.)
+ * - Random sampling
+ *
+ * The normal distribution is parameterized by:
+ * - mean (μ): location parameter, can be any real number
+ * - stddev (σ): scale parameter, must be positive
+ */
+
 #include "utils.hpp"
 #include "rng_utils.hpp"
 
@@ -5,131 +21,160 @@ namespace duckdb {
 
 namespace {
 
-// Generate all normal distribution functions using the macro
-DEFINE_DISTRIBUTION_FUNC(NormalPdfFunc, boost::math::normal_distribution<double>, boost::math::pdf(dist, x))
-DEFINE_DISTRIBUTION_FUNC(NormalLogPdfFunc, boost::math::normal_distribution<double>, boost::math::logpdf(dist, x))
-DEFINE_DISTRIBUTION_FUNC(NormalCdfFunc, boost::math::normal_distribution<double>, boost::math::cdf(dist, x))
-DEFINE_DISTRIBUTION_FUNC(NormalLogCdfFunc, boost::math::normal_distribution<double>, boost::math::logcdf(dist, x))
-DEFINE_DISTRIBUTION_FUNC(NormalQuantileFunc, boost::math::normal_distribution<double>, boost::math::quantile(dist, x))
+// Macro for distribution functions that take no additional parameters (e.g., mean, variance)
+// These functions only require the distribution parameters (mean, stddev)
+#define NONE_FUNC(FuncName, BoostFunc)                                                                                 \
+	inline void FuncName(DataChunk &args, ExpressionState &state, Vector &result) {                                    \
+		DistributionCallBinaryNone<boost::math::normal_distribution<double>, double, double, double>(                  \
+		    args, state, result, [](const auto &dist) { return BoostFunc; });                                          \
+	}
 
-DEFINE_DISTRIBUTION_FUNC(NormalCdfComplementFunc, boost::math::normal_distribution<double>,
-                         boost::math::cdf(boost::math::complement(dist, x)))
-DEFINE_DISTRIBUTION_FUNC(NormalLogCdfComplementFunc, boost::math::normal_distribution<double>,
-                         boost::math::logcdf(boost::math::complement(dist, x)))
-DEFINE_DISTRIBUTION_FUNC(NormalQuantileComplementFunc, boost::math::normal_distribution<double>,
-                         boost::math::quantile(boost::math::complement(dist, x)))
+// Macro for distribution functions that take one additional parameter (e.g., PDF, CDF, quantile)
+// These functions require distribution parameters (mean, stddev) plus one evaluation point
+#define UNARY_FUNC(FuncName, BoostFunc)                                                                                \
+	inline void FuncName(DataChunk &args, ExpressionState &state, Vector &result) {                                    \
+		DistributionCallBinaryUnary<boost::math::normal_distribution<double>, double, double, double, double>(         \
+		    args, state, result, [](const auto &dist, auto x) { return BoostFunc; });                                  \
+	}
 
-// Statistical moment functions for normal distribution
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalMeanFunc, boost::math::normal_distribution<double>, boost::math::mean(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalStdDevFunc, boost::math::normal_distribution<double>,
-                                   boost::math::standard_deviation(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalVarianceFunc, boost::math::normal_distribution<double>,
-                                   boost::math::variance(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalModeFunc, boost::math::normal_distribution<double>, boost::math::mode(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalMedianFunc, boost::math::normal_distribution<double>,
-                                   boost::math::median(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalSkewnessFunc, boost::math::normal_distribution<double>,
-                                   boost::math::skewness(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalKurtosisFunc, boost::math::normal_distribution<double>,
-                                   boost::math::kurtosis(dist))
-DEFINE_DISTRIBUTION_STATISTIC_FUNC(NormalKurtosisExcessFunc, boost::math::normal_distribution<double>,
-                                   boost::math::kurtosis_excess(dist))
+UNARY_FUNC(NormalPdf, boost::math::pdf(dist, x));
+UNARY_FUNC(NormalLogPdf, boost::math::logpdf(dist, x));
+UNARY_FUNC(NormalCdf, boost::math::cdf(dist, x));
+UNARY_FUNC(NormalLogCdf, boost::math::logcdf(dist, x));
+UNARY_FUNC(NormalCdfComplement, boost::math::cdf(boost::math::complement(dist, x)));
+UNARY_FUNC(NormalLogCdfComplement, boost::math::logcdf(boost::math::complement(dist, x)));
+UNARY_FUNC(NormalQuantile, boost::math::quantile(dist, x));
+UNARY_FUNC(NormalQuantileComplement, boost::math::quantile(boost::math::complement(dist, x)));
 
-inline void NormalRandFunc(DataChunk &args, ExpressionState &state, Vector &result) {
-	GenericTwoParamSampleFunc<boost::random::normal_distribution<double>, double>(args, state, result);
+NONE_FUNC(NormalMean, dist.mean());
+NONE_FUNC(NormalStdDev, dist.standard_deviation());
+NONE_FUNC(NormalVariance, boost::math::variance(dist));
+NONE_FUNC(NormalMode, boost::math::mode(dist));
+NONE_FUNC(NormalMedian, boost::math::median(dist));
+NONE_FUNC(NormalSkewness, boost::math::skewness(dist));
+NONE_FUNC(NormalKurtosis, boost::math::kurtosis(dist));
+NONE_FUNC(NormalKurtosisExcess, boost::math::kurtosis_excess(dist));
+
+// Random sampling function for normal distribution
+// Uses thread-local RNG for reproducible results across parallel execution
+inline void NormalRand(DataChunk &args, ExpressionState &state, Vector &result) {
+	DistributionSampleBinary<boost::random::normal_distribution<double>, double, double, double>(args, state, result);
 }
 
 } // namespace
 
+// Registers all normal distribution-related functions (PDF, CDF, quantile, statistics, sampling) with the database
+// instance. The normal distribution is parameterized by mean (μ) and standard deviation (σ > 0).
 void LoadDistributionNormal(DatabaseInstance &instance) {
-	const duckdb::vector<LogicalType> normal_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE,
-	                                                        LogicalType::DOUBLE};
-	const duckdb::vector<LogicalType> normal_sample_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE};
-	const duckdb::vector<LogicalType> normal_statistic_param_types = {LogicalType::DOUBLE, LogicalType::DOUBLE};
+	// Parameter types for functions that take an additional evaluation point (x or p)
+	const duckdb::vector<LogicalType> param_types_unary = {LogicalType::DOUBLE, LogicalType::DOUBLE,
+	                                                       LogicalType::DOUBLE};
+	// Parameter types for functions that only need distribution parameters
+	const duckdb::vector<LogicalType> param_types_none = {LogicalType::DOUBLE, LogicalType::DOUBLE};
+	// Parameter types for quantile functions (probability p instead of x)
+	const duckdb::vector<LogicalType> param_types_quantile = {LogicalType::DOUBLE, LogicalType::DOUBLE,
+	                                                          LogicalType::DOUBLE};
 
-	REGISTER_NORMAL_FUNC(
-	    instance, "normal_pdf", NormalPdfFunc,
+	const duckdb::vector<string> param_names_none = {"mean", "stddev"};
+	const duckdb::vector<string> param_names_unary = {"mean", "stddev", "x"};
+	const duckdb::vector<string> param_names_quantile = {"mean", "stddev", "p"};
+
+	// === SAMPLING FUNCTIONS ===
+	// Used to sample from a distribution
+	RegisterFunction(
+	    instance, "normal_sample", FunctionStability::VOLATILE, param_types_none, LogicalType::DOUBLE, NormalRand,
+	    "Generates random samples from the normal distribution with specified mean and standard deviation.",
+	    "normal_sample(0.0, 1.0)", param_names_none);
+
+	// === PROBABILITY DENSITY FUNCTIONS ===
+	RegisterFunction(
+	    instance, "normal_pdf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE, NormalPdf,
 	    "Computes the probability density function (PDF) of the normal distribution. Returns the probability density "
 	    "at point x for a normal distribution with specified mean and standard deviation.",
-	    "normal_pdf(0.0, 1.0, 0.5)", "x");
+	    "normal_pdf(0, 1.0, 0.5)", param_names_unary);
 
-	REGISTER_NORMAL_FUNC(instance, "normal_log_pdf", NormalLogPdfFunc,
-	                     "Computes the natural logarithm of the probability density function (log-PDF) of the normal "
-	                     "distribution. Useful for numerical stability when dealing with very small probabilities.",
-	                     "normal_log_pdf(0.0, 1.0, 0.5)", "x");
+	RegisterFunction(instance, "normal_log_pdf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
+	                 NormalLogPdf,
+	                 "Computes the natural logarithm of the probability density function (log-PDF) of the normal "
+	                 "distribution. Useful for numerical stability when dealing with very small probabilities.",
+	                 "normal_log_pdf(0, 1.0, 0.5)", param_names_unary);
 
-	REGISTER_NORMAL_FUNC(instance, "normal_cdf", NormalCdfFunc,
-	                     "Computes the cumulative distribution function (CDF) of the normal distribution. Returns the "
-	                     "probability that a random variable X is less than or equal to x.",
-	                     "normal_cdf(0.0, 1.0, 0.5)", "x");
+	// === CUMULATIVE DISTRIBUTION FUNCTIONS ===
+	RegisterFunction(instance, "normal_cdf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
+	                 NormalCdf,
+	                 "Computes the cumulative distribution function (CDF) of the normal distribution. Returns the "
+	                 "probability that a random variable X is less than or equal to x.",
+	                 "normal_cdf(0, 1.0, 0.5)", param_names_unary);
 
-	REGISTER_NORMAL_FUNC(instance, "normal_cdf_complement", NormalCdfComplementFunc,
-	                     "Computes the complementary cumulative distribution function (1 - CDF) of the normal "
-	                     "distribution. Returns the probability that X > x, equivalent to the survival function.",
-	                     "normal_cdf_complement(0.0, 1.0, 0.5)", "x");
+	RegisterFunction(instance, "normal_cdf_complement", FunctionStability::CONSISTENT, param_types_unary,
+	                 LogicalType::DOUBLE, NormalCdfComplement,
+	                 "Computes the complementary cumulative distribution function (1 - CDF) of the normal "
+	                 "distribution. Returns the probability that X > x, equivalent to the survival function.",
+	                 "normal_cdf_complement(0, 1.0, 0.5)", param_names_unary);
 
-	REGISTER_NORMAL_FUNC(
-	    instance, "normal_log_cdf", NormalLogCdfFunc,
+	RegisterFunction(
+	    instance, "normal_log_cdf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE, NormalLogCdf,
+	    "Computes the natural logarithm of the cumulative distribution function (CDF) of the normal distribution. "
+	    "Returns the logarithm of the probability that a random variable X is less than or equal to x.",
+	    "normal_log_cdf(0, 1.0, 0.5)", param_names_unary);
+
+	RegisterFunction(
+	    instance, "normal_log_cdf_complement", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
+	    NormalLogCdfComplement,
 	    "Computes the natural logarithm of the complementary cumulative distribution function (1 - CDF) of the normal "
 	    "distribution. Returns the logarithm of the probability that X > x, equivalent to the survival function.",
-	    "normal_log_cdf(0.0, 1.0, 0.5)", "x");
+	    "normal_log_cdf_complement(0, 1.0, 0.5)", param_names_unary);
 
-	REGISTER_NORMAL_FUNC(
-	    instance, "normal_log_cdf_complement", NormalLogCdfComplementFunc,
-	    "Computes the natural logarithm of the complementary cumulative distribution function (1 - CDF) of the normal "
-	    "distribution. Returns the logarithm of the probability that X > x, equivalent to the survival function.",
-	    "normal_log_cdf_complement(0.0, 1.0, 0.5)", "x");
+	// === QUANTILE FUNCTIONS ===
 
-	REGISTER_NORMAL_FUNC(instance, "normal_quantile", NormalQuantileFunc,
-	                     "Computes the quantile function (inverse CDF) of the normal distribution. Returns the value x "
-	                     "such that P(X ≤ x) = p, where p is the cumulative probability.",
-	                     "normal_quantile(0.0, 1.0, 0.5)", "p");
+	// === QUANTILE FUNCTIONS ===
+	RegisterFunction(instance, "normal_quantile", FunctionStability::CONSISTENT, param_types_quantile,
+	                 LogicalType::DOUBLE, NormalQuantile,
+	                 "Computes the quantile function (inverse CDF) of the normal distribution. Returns the value x "
+	                 "such that P(X ≤ x) = p, where p is the cumulative probability.",
+	                 "normal_quantile(0, 1.0, 0.95)", param_names_quantile);
 
-	REGISTER_NORMAL_FUNC(instance, "normal_quantile_complement", NormalQuantileComplementFunc,
-	                     "Computes the complementary quantile function of the normal distribution. Returns the value x "
-	                     "such that P(X > x) = p, useful for computing upper tail quantiles.",
-	                     "normal_quantile_complement(0.0, 1.0, 0.5)", "p");
+	RegisterFunction(instance, "normal_quantile_complement", FunctionStability::CONSISTENT, param_types_quantile,
+	                 LogicalType::DOUBLE, NormalQuantileComplement,
+	                 "Computes the complementary quantile function of the normal distribution. Returns the value x "
+	                 "such that P(X > x) = p, useful for computing upper tail quantiles.",
+	                 "normal_quantile_complement(0, 1.0, 0.95)", param_names_quantile);
 
-	// Sampling function
-	RegisterSamplingFunction(
-	    instance, "normal_sample", NormalRandFunc,
-	    "Generates random samples from the normal distribution with specified mean and standard deviation.",
-	    "normal_sample(0.0, 1.0)", {"mean", "stddev"}, normal_sample_param_types);
+	// === DISTRIBUTION PROPERTIES ===
 
-	// Statistical moment functions
-	REGISTER_NORMAL_STATISTIC_FUNC(instance, "normal_mean", NormalMeanFunc,
-	                               "Returns the mean (μ) of the normal distribution.", "normal_mean(0.0, 1.0)");
+	RegisterFunction(instance, "normal_mean", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalMean, "Returns the mean (μ) of the normal distribution, which is the first moment.",
+	                 "normal_mean(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(instance, "normal_stddev", NormalStdDevFunc,
-	                               "Returns the standard deviation (σ) of the normal distribution.",
-	                               "normal_stddev(0.0, 1.0)");
+	RegisterFunction(instance, "normal_stddev", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalStdDev, "Returns the standard deviation (σ) of the normal distribution.",
+	                 "normal_stddev(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(instance, "normal_variance", NormalVarianceFunc,
-	                               "Returns the variance (σ²) of the normal distribution.",
-	                               "normal_variance(0.0, 1.0)");
+	RegisterFunction(instance, "normal_variance", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalVariance, "Returns the variance (σ²) of the normal distribution.",
+	                 "normal_variance(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(
-	    instance, "normal_mode", NormalModeFunc,
-	    "Returns the mode (most likely value) of the normal distribution, which equals the mean.",
-	    "normal_mode(0.0, 1.0)");
+	RegisterFunction(instance, "normal_mode", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalMode,
+	                 "Returns the mode (most likely value) of the normal distribution, which equals the mean.",
+	                 "normal_mode(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(
-	    instance, "normal_median", NormalMedianFunc,
-	    "Returns the median (50th percentile) of the normal distribution, which equals the mean.",
-	    "normal_median(0.0, 1.0)");
+	RegisterFunction(instance, "normal_median", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalMedian,
+	                 "Returns the median (50th percentile) of the normal distribution, which equals the mean.",
+	                 "normal_median(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(instance, "normal_skewness", NormalSkewnessFunc,
-	                               "Returns the skewness of the normal distribution, which is always 0.",
-	                               "normal_skewness(0.0, 1.0)");
+	RegisterFunction(instance, "normal_skewness", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalSkewness, "Returns the skewness of the normal distribution, which is always 0.",
+	                 "normal_skewness(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(instance, "normal_kurtosis", NormalKurtosisFunc,
-	                               "Returns the kurtosis of the normal distribution, which is always 3.",
-	                               "normal_kurtosis(0.0, 1.0)");
+	RegisterFunction(instance, "normal_kurtosis", FunctionStability::CONSISTENT, param_types_none, LogicalType::DOUBLE,
+	                 NormalKurtosis, "Returns the kurtosis of the normal distribution, which is always 3.",
+	                 "normal_kurtosis(0.0, 1.0)", param_names_none);
 
-	REGISTER_NORMAL_STATISTIC_FUNC(
-	    instance, "normal_kurtosis_excess", NormalKurtosisExcessFunc,
-	    "Returns the excess kurtosis of the normal distribution, which is always 0 (kurtosis - 3).",
-	    "normal_kurtosis_excess(0.0, 1.0)");
+	RegisterFunction(instance, "normal_kurtosis_excess", FunctionStability::CONSISTENT, param_types_none,
+	                 LogicalType::DOUBLE, NormalKurtosisExcess,
+	                 "Returns the excess kurtosis of the normal distribution, which is always 0 (kurtosis - 3).",
+	                 "normal_kurtosis_excess(0.0, 1.0)", param_names_none);
 }
-
-} // namespace duckdb
+} // end namespace duckdb
