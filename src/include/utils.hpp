@@ -5,11 +5,13 @@
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
-
+#include "duckdb/common/vector_operations/generic_executor.hpp"
 #include <boost/math/distributions.hpp>
 #include <boost/random.hpp>
 #include "rng_utils.hpp"
 
+#include <type_traits>
+#include <utility> // std::declval
 namespace duckdb {
 
 template <typename FuncType>
@@ -262,11 +264,48 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 	    });
 }
 
+template <typename DistributionType, typename ReturnType, typename Func, typename... DistParams>
+inline void DistributionCall(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
+	constexpr std::size_t N = sizeof...(DistParams);
+
+	// Helper to extract constant values from ConstantVector
+	auto get_const_values = [&]<std::size_t... I>(std::index_sequence<I...>) {
+		return std::make_tuple(ConstantVector::GetData<DistParams>(args.data[I])[0]... // extract each param
+		);
+	};
+
+	if constexpr (N > 0) {
+		auto dist = [&]<std::size_t... I>(std::index_sequence<I...>) {
+			// Forward each element of the tuple to the constructor
+			auto tup = get_const_values(std::index_sequence<I...> {});
+			return DistributionType(std::get<I>(tup)...);
+		}(std::make_index_sequence<N> {});
+
+		// Now dist is constructed with all parameters
+		result.SetVectorType(VectorType::CONSTANT_VECTOR);
+
+		using FuncReturnType = decltype(op(result, dist));
+		if constexpr (std::is_same_v<FuncReturnType, std::pair<double, double>>) {
+			auto &result_data_children = ArrayVector::GetEntry(result);
+			auto data_ptr = FlatVector::GetData<ReturnType>(result_data_children);
+			auto array_result = op(result, dist);
+			data_ptr[0] = array_result.first;
+			data_ptr[1] = array_result.second;
+		} else {
+			auto result_data = ConstantVector::GetData<ReturnType>(result);
+			result_data[0] = op(result, dist);
+		}
+	}
+}
+
 // Generic function template for single parameter distributions with single call parameter
 template <typename DistributionType, typename DistParam1, typename DistParam2, typename ReturnType, typename Func>
 inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
 	auto &dist_param1_vector = args.data[0];
 	auto &dist_param2_vector = args.data[1];
+
+	//	using ReturnType2 = std::invoke_result_t<Func, Vector, DistributionType>;
+	using FuncReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
 
 	// Handle constant vectors optimization
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
@@ -285,18 +324,73 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		DistributionType dist(dist_param1, dist_param2);
 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
-		auto result_data = ConstantVector::GetData<ReturnType>(result);
-		result_data[0] = op(dist);
+		if constexpr (std::is_same_v<FuncReturnType, std::pair<double, double>>) {
+			auto &result_data_children = ArrayVector::GetEntry(result);
+			auto data_ptr = FlatVector::GetData<ReturnType>(result_data_children);
+			auto array_result = op(result, dist);
+			data_ptr[0] = array_result.first;
+			data_ptr[1] = array_result.second;
+		} else {
+			auto result_data = ConstantVector::GetData<ReturnType>(result);
+			result_data[0] = op(result, dist);
+		}
 		return;
 	}
 
-	// Handle general case where both parameters vary
-	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(dist_param1_vector, dist_param2_vector, result,
-	                                                            args.size(),
-	                                                            [&](DistParam1 dist_param1, DistParam2 dist_param2) {
-		                                                            DistributionType dist(dist_param1, dist_param2);
-		                                                            return op(dist);
-	                                                            });
+	// We need to specialize here because GenericExecutor doesn't support std::pair
+	// as a return type into an array.
+	if constexpr (std::is_same_v<FuncReturnType, std::pair<double, double>>) {
+		UnifiedVectorFormat dist_param1_data;
+		UnifiedVectorFormat dist_param2_data;
+
+		dist_param1_vector.ToUnifiedFormat(args.size(), dist_param1_data);
+		dist_param2_vector.ToUnifiedFormat(args.size(), dist_param2_data);
+
+		result.SetVectorType(VectorType::FLAT_VECTOR);
+
+		auto &result_data_children = ArrayVector::GetEntry(result);
+		auto result_data = FlatVector::GetData<ReturnType>(result_data_children);
+
+		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
+			auto result_validity = FlatVector::Validity(result);
+			for (idx_t i = 0; i < args.size(); i++) {
+				auto dist_param1_index = dist_param1_data.sel->get_index(i);
+				auto dist_param2_index = dist_param2_data.sel->get_index(i);
+				if (dist_param1_data.validity.RowIsValid(dist_param1_index) &&
+				    dist_param2_data.validity.RowIsValid(dist_param2_index)) {
+					auto dist_param1_entry =
+					    UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data)[dist_param1_index];
+					auto dist_param2_entry =
+					    UnifiedVectorFormat::GetData<DistParam2>(dist_param2_data)[dist_param2_index];
+
+					DistributionType dist(dist_param1_entry, dist_param2_entry);
+					auto op_result = op(result, dist);
+					result_data[i * 2] = op_result.first;
+					result_data[i * 2 + 1] = op_result.second;
+				} else {
+					result_validity.SetInvalid(i);
+				}
+			}
+		} else {
+			auto dist_param1_entries = UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data);
+			auto dist_param2_entries = UnifiedVectorFormat::GetData<DistParam2>(dist_param2_data);
+			for (idx_t i = 0; i < args.size(); i++) {
+				auto dist_param1_entry = dist_param1_entries[dist_param1_data.sel->get_index(i)];
+				auto dist_param2_entry = dist_param2_entries[dist_param2_data.sel->get_index(i)];
+				DistributionType dist(dist_param1_entry, dist_param2_entry);
+				auto op_result = op(result, dist);
+				result_data[i * 2] = op_result.first;
+				result_data[i * 2 + 1] = op_result.second;
+			}
+		}
+	} else {
+		BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(
+		    dist_param1_vector, dist_param2_vector, result, args.size(),
+		    [&](DistParam1 dist_param1, DistParam2 dist_param2) {
+			    DistributionType dist(dist_param1, dist_param2);
+			    return op(result, dist);
+		    });
+	}
 }
 
 void LoadDistributionNormal(DatabaseInstance &instance);

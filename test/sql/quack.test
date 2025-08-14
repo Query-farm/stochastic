@@ -173,3 +173,17 @@ SELECT normal_cdf(0.0, 1.0, -10.0) < 0.0001;
 ----
 true
 
+query R
+SELECT normal_cdf(0.0, 1.0, -10.0) < 0.0001;
+----
+true
+
+query T
+SELECT normal_range(1, 1);
+----
+[-inf, inf]
+
+query T
+SELECT normal_support(1, 1);
+----
+[-inf, inf]

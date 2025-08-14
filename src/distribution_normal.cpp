@@ -26,7 +26,7 @@ namespace {
 #define NONE_FUNC(FuncName, BoostFunc)                                                                                 \
 	inline void FuncName(DataChunk &args, ExpressionState &state, Vector &result) {                                    \
 		DistributionCallBinaryNone<boost::math::normal_distribution<double>, double, double, double>(                  \
-		    args, state, result, [](const auto &dist) { return BoostFunc; });                                          \
+		    args, state, result, [](Vector &result, const auto &dist) { return BoostFunc; });                          \
 	}
 
 // Macro for distribution functions that take one additional parameter (e.g., PDF, CDF, quantile)
@@ -45,6 +45,8 @@ UNARY_FUNC(NormalCdfComplement, boost::math::cdf(boost::math::complement(dist, x
 UNARY_FUNC(NormalLogCdfComplement, boost::math::logcdf(boost::math::complement(dist, x)));
 UNARY_FUNC(NormalQuantile, boost::math::quantile(dist, x));
 UNARY_FUNC(NormalQuantileComplement, boost::math::quantile(boost::math::complement(dist, x)));
+UNARY_FUNC(NormalHazard, boost::math::hazard(dist, x));
+UNARY_FUNC(NormalChf, boost::math::chf(dist, x));
 
 NONE_FUNC(NormalMean, dist.mean());
 NONE_FUNC(NormalStdDev, dist.standard_deviation());
@@ -54,6 +56,8 @@ NONE_FUNC(NormalMedian, boost::math::median(dist));
 NONE_FUNC(NormalSkewness, boost::math::skewness(dist));
 NONE_FUNC(NormalKurtosis, boost::math::kurtosis(dist));
 NONE_FUNC(NormalKurtosisExcess, boost::math::kurtosis_excess(dist));
+NONE_FUNC(NormalRange, boost::math::range(dist));
+NONE_FUNC(NormalSupport, boost::math::support(dist));
 
 // Random sampling function for normal distribution
 // Uses thread-local RNG for reproducible results across parallel execution
@@ -126,8 +130,6 @@ void LoadDistributionNormal(DatabaseInstance &instance) {
 	    "normal_log_cdf_complement(0, 1.0, 0.5)", param_names_unary);
 
 	// === QUANTILE FUNCTIONS ===
-
-	// === QUANTILE FUNCTIONS ===
 	RegisterFunction(instance, "normal_quantile", FunctionStability::CONSISTENT, param_types_quantile,
 	                 LogicalType::DOUBLE, NormalQuantile,
 	                 "Computes the quantile function (inverse CDF) of the normal distribution. Returns the value x "
@@ -139,6 +141,14 @@ void LoadDistributionNormal(DatabaseInstance &instance) {
 	                 "Computes the complementary quantile function of the normal distribution. Returns the value x "
 	                 "such that P(X > x) = p, useful for computing upper tail quantiles.",
 	                 "normal_quantile_complement(0, 1.0, 0.95)", param_names_quantile);
+
+	RegisterFunction(instance, "normal_hazard", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
+	                 NormalHazard, "Computes the hazard function of the normal distribution.",
+	                 "normal_hazard(0, 1.0, 0.5)", param_names_unary);
+
+	RegisterFunction(instance, "normal_chf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
+	                 NormalChf, "Computes the cumulative hazard function of the normal distribution.",
+	                 "normal_chf(0, 1.0, 0.5)", param_names_unary);
 
 	// === DISTRIBUTION PROPERTIES ===
 
@@ -176,5 +186,15 @@ void LoadDistributionNormal(DatabaseInstance &instance) {
 	                 LogicalType::DOUBLE, NormalKurtosisExcess,
 	                 "Returns the excess kurtosis of the normal distribution, which is always 0 (kurtosis - 3).",
 	                 "normal_kurtosis_excess(0.0, 1.0)", param_names_none);
+
+	RegisterFunction(instance, "normal_range", FunctionStability::CONSISTENT, param_types_none,
+	                 LogicalType::ARRAY(LogicalType::DOUBLE, 2), NormalRange,
+	                 "Returns the range of the normal distribution, which is (-∞, +∞).", "normal_range(0.0, 1.0)",
+	                 param_names_none);
+
+	RegisterFunction(instance, "normal_support", FunctionStability::CONSISTENT, param_types_none,
+	                 LogicalType::ARRAY(LogicalType::DOUBLE, 2), NormalSupport,
+	                 "Returns the support of the normal distribution, which is (-∞, +∞).", "normal_support(0.0, 1.0)",
+	                 param_names_none);
 }
 } // end namespace duckdb
