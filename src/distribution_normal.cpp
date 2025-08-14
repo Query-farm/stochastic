@@ -16,6 +16,7 @@
 
 #include "utils.hpp"
 #include "rng_utils.hpp"
+#include "distribution_traits.hpp"
 
 namespace duckdb {
 
@@ -23,18 +24,19 @@ namespace {
 
 // Macro for distribution functions that take no additional parameters (e.g., mean, variance)
 // These functions only require the distribution parameters (mean, stddev)
-#define NONE_FUNC(FuncName, BoostFunc)                                                                                 \
+#define NONE_FUNC(FuncName, Func)                                                                                      \
 	inline void FuncName(DataChunk &args, ExpressionState &state, Vector &result) {                                    \
-		DistributionCallBinaryNone<boost::math::normal_distribution<double>, double, double, double>(                  \
-		    args, state, result, [](Vector &result, const auto &dist) { return BoostFunc; });                          \
+		DistributionCallBinaryNone<boost::math::normal_distribution<double>>(                                          \
+		    args, state, result, [](Vector &result, const auto &dist) { return Func; });                               \
 	}
 
 // Macro for distribution functions that take one additional parameter (e.g., PDF, CDF, quantile)
 // These functions require distribution parameters (mean, stddev) plus one evaluation point
-#define UNARY_FUNC(FuncName, BoostFunc)                                                                                \
+#define UNARY_FUNC(FuncName, Func)                                                                                     \
 	inline void FuncName(DataChunk &args, ExpressionState &state, Vector &result) {                                    \
-		DistributionCallBinaryUnary<boost::math::normal_distribution<double>, double, double, double, double>(         \
-		    args, state, result, [](const auto &dist, auto x) { return BoostFunc; });                                  \
+		DistributionCallBinaryUnary<boost::math::normal_distribution<double>, double>(                                 \
+		    args, state, result,                                                                                       \
+		    [](const auto &dist, auto x) -> boost::math::normal_distribution<double>::value_type { return Func; });    \
 	}
 
 UNARY_FUNC(NormalPdf, boost::math::pdf(dist, x));
@@ -90,10 +92,10 @@ void LoadDistributionNormal(DatabaseInstance &instance) {
 	    "Generates random samples from the normal distribution with specified mean and standard deviation.",
 	    "normal_sample(0.0, 1.0)", param_names_none);
 
-	// === PROBABILITY DENSITY FUNCTIONS ===
+	// // === PROBABILITY DENSITY FUNCTIONS ===
 	RegisterFunction(
 	    instance, "normal_pdf", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE, NormalPdf,
-	    "Computes the probability density function (PDF) of the normal distribution. Returns the probability density "
+	    "Computes the probability density function (PDF) of the normal distribution. Returns the probability density"
 	    "at point x for a normal distribution with specified mean and standard deviation.",
 	    "normal_pdf(0, 1.0, 0.5)", param_names_unary);
 
@@ -125,8 +127,8 @@ void LoadDistributionNormal(DatabaseInstance &instance) {
 	RegisterFunction(
 	    instance, "normal_log_cdf_complement", FunctionStability::CONSISTENT, param_types_unary, LogicalType::DOUBLE,
 	    NormalLogCdfComplement,
-	    "Computes the natural logarithm of the complementary cumulative distribution function (1 - CDF) of the normal "
-	    "distribution. Returns the logarithm of the probability that X > x, equivalent to the survival function.",
+	    "Computes the natural logarithm of the complementary cumulative distribution function (1 - CDF) of the normal"
+	    " distribution. Returns the logarithm of the probability that X > x, equivalent to the survival function.",
 	    "normal_log_cdf_complement(0, 1.0, 0.5)", param_names_unary);
 
 	// === QUANTILE FUNCTIONS ===

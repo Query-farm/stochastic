@@ -9,7 +9,7 @@
 #include <boost/math/distributions.hpp>
 #include <boost/random.hpp>
 #include "rng_utils.hpp"
-
+#include "distribution_traits.hpp"
 #include <type_traits>
 #include <utility> // std::declval
 namespace duckdb {
@@ -108,106 +108,13 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 	                                                            });
 }
 
-template <typename DistributionType, typename Param1Type, typename Param2Type, typename Param3Type, typename ReturnType>
-inline void DistributionSampleTernary(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &param1_vector = args.data[0];
-	auto &param2_vector = args.data[1];
-	auto &param3_vector = args.data[2];
-
-	if (param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
-	    param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
-	    param3_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-		if (ConstantVector::IsNull(param1_vector) || ConstantVector::IsNull(param2_vector) ||
-		    ConstantVector::IsNull(param3_vector)) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-			ConstantVector::SetNull(result, true);
-			return;
-		}
-
-		const auto param1 = ConstantVector::GetData<Param1Type>(param1_vector)[0];
-		const auto param2 = ConstantVector::GetData<Param2Type>(param2_vector)[0];
-		const auto param3 = ConstantVector::GetData<Param3Type>(param3_vector)[0];
-
-		// Create distribution once and reuse for constant vectors
-		DistributionType dist(param1, param2, param3);
-		const auto results = FlatVector::GetData<ReturnType>(result);
-
-		for (size_t i = 0; i < args.size(); i++) {
-			results[i] = dist(rng);
-		}
-
-		// Set vector type appropriately
-		if (args.size() == 1) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-		}
-		return;
-	}
-
-	TernaryExecutor::Execute<Param1Type, Param2Type, Param3Type, ReturnType>(
-	    param1_vector, param2_vector, param3_vector, result, args.size(),
-	    [&](Param1Type param1, Param2Type param2, Param3Type param3) {
-		    DistributionType dist(param1, param2, param3);
-		    return dist(rng);
-	    });
-}
-
-// Generic function template for single parameter distributions with single call parameter
-template <typename DistributionType, typename DistParam, typename CallParam, typename ReturnType, typename Operation>
-inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, Vector &result, Operation op) {
-	auto &dist_param_vector = args.data[0];
-	auto &call_param_vector = args.data[1];
-
-	// Handle constant vectors optimization
-	if (dist_param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
-	    call_param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-
-		if (ConstantVector::IsNull(dist_param_vector) || ConstantVector::IsNull(call_param_vector)) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-			ConstantVector::SetNull(result, true);
-			return;
-		}
-
-		const auto dist_param = ConstantVector::GetData<DistParam>(dist_param_vector)[0];
-		const auto call_param = ConstantVector::GetData<CallParam>(call_param_vector)[0];
-
-		// Create distribution once for constant case
-		DistributionType dist(dist_param);
-		auto constant_result = op(dist, call_param);
-
-		result.SetVectorType(VectorType::CONSTANT_VECTOR);
-		auto result_data = ConstantVector::GetData<ReturnType>(result);
-		result_data[0] = constant_result;
-		return;
-	}
-
-	// Handle distribution parameter constant, call parameter varying
-	if (dist_param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-		if (ConstantVector::IsNull(dist_param_vector)) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-			ConstantVector::SetNull(result, true);
-			return;
-		}
-
-		const auto dist_param = ConstantVector::GetData<DistParam>(dist_param_vector)[0];
-		DistributionType dist(dist_param);
-
-		UnaryExecutor::Execute<CallParam, ReturnType>(call_param_vector, result, args.size(),
-		                                              [&](CallParam call_param) { return op(dist, call_param); });
-		return;
-	}
-
-	// Handle general case where both parameters vary
-	BinaryExecutor::Execute<DistParam, CallParam, ReturnType>(dist_param_vector, call_param_vector, result, args.size(),
-	                                                          [&](DistParam dist_param, CallParam call_param) {
-		                                                          DistributionType dist(dist_param);
-		                                                          return op(dist, call_param);
-	                                                          });
-}
-
-// Generic function template for single parameter distributions with single call parameter
-template <typename DistributionType, typename DistParam1, typename DistParam2, typename CallParam, typename ReturnType,
-          typename Func>
+template <typename DistributionType, typename CallParam, typename Func>
 inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
+
+	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
+	using DistParam2 = typename distribution_traits<DistributionType>::param2_t;
+	using ReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
+
 	auto &dist_param1_vector = args.data[0];
 	auto &dist_param2_vector = args.data[1];
 	auto &call_param_vector = args.data[2];
@@ -264,47 +171,16 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 	    });
 }
 
-template <typename DistributionType, typename ReturnType, typename Func, typename... DistParams>
-inline void DistributionCall(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
-	constexpr std::size_t N = sizeof...(DistParams);
-
-	// Helper to extract constant values from ConstantVector
-	auto get_const_values = [&]<std::size_t... I>(std::index_sequence<I...>) {
-		return std::make_tuple(ConstantVector::GetData<DistParams>(args.data[I])[0]... // extract each param
-		);
-	};
-
-	if constexpr (N > 0) {
-		auto dist = [&]<std::size_t... I>(std::index_sequence<I...>) {
-			// Forward each element of the tuple to the constructor
-			auto tup = get_const_values(std::index_sequence<I...> {});
-			return DistributionType(std::get<I>(tup)...);
-		}(std::make_index_sequence<N> {});
-
-		// Now dist is constructed with all parameters
-		result.SetVectorType(VectorType::CONSTANT_VECTOR);
-
-		using FuncReturnType = decltype(op(result, dist));
-		if constexpr (std::is_same_v<FuncReturnType, std::pair<double, double>>) {
-			auto &result_data_children = ArrayVector::GetEntry(result);
-			auto data_ptr = FlatVector::GetData<ReturnType>(result_data_children);
-			auto array_result = op(result, dist);
-			data_ptr[0] = array_result.first;
-			data_ptr[1] = array_result.second;
-		} else {
-			auto result_data = ConstantVector::GetData<ReturnType>(result);
-			result_data[0] = op(result, dist);
-		}
-	}
-}
-
+//
 // Generic function template for single parameter distributions with single call parameter
-template <typename DistributionType, typename DistParam1, typename DistParam2, typename ReturnType, typename Func>
+template <typename DistributionType, typename Func>
 inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
+	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
+	using DistParam2 = typename distribution_traits<DistributionType>::param2_t;
+
 	auto &dist_param1_vector = args.data[0];
 	auto &dist_param2_vector = args.data[1];
 
-	//	using ReturnType2 = std::invoke_result_t<Func, Vector, DistributionType>;
 	using FuncReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
 
 	// Handle constant vectors optimization
@@ -326,12 +202,12 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
 		if constexpr (std::is_same_v<FuncReturnType, std::pair<double, double>>) {
 			auto &result_data_children = ArrayVector::GetEntry(result);
-			auto data_ptr = FlatVector::GetData<ReturnType>(result_data_children);
+			auto data_ptr = FlatVector::GetData<double>(result_data_children);
 			auto array_result = op(result, dist);
 			data_ptr[0] = array_result.first;
 			data_ptr[1] = array_result.second;
 		} else {
-			auto result_data = ConstantVector::GetData<ReturnType>(result);
+			auto result_data = ConstantVector::GetData<FuncReturnType>(result);
 			result_data[0] = op(result, dist);
 		}
 		return;
@@ -349,7 +225,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		result.SetVectorType(VectorType::FLAT_VECTOR);
 
 		auto &result_data_children = ArrayVector::GetEntry(result);
-		auto result_data = FlatVector::GetData<ReturnType>(result_data_children);
+		auto result_data = FlatVector::GetData<double>(result_data_children);
 
 		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
 			auto result_validity = FlatVector::Validity(result);
@@ -384,7 +260,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 			}
 		}
 	} else {
-		BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(
+		BinaryExecutor::Execute<DistParam1, DistParam2, FuncReturnType>(
 		    dist_param1_vector, dist_param2_vector, result, args.size(),
 		    [&](DistParam1 dist_param1, DistParam2 dist_param2) {
 			    DistributionType dist(dist_param1, dist_param2);
