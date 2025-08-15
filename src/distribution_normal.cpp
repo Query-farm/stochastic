@@ -16,7 +16,7 @@ struct distribution_traits<boost::math::normal_distribution<double>> {
 	                         //	using return_t = double; // result type
 
 	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
-	static constexpr string prefix = "normal";
+	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
@@ -31,7 +31,7 @@ struct distribution_traits<boost::random::normal_distribution<double>> {
 
 	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
 
-	static constexpr string prefix = "normal";
+	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
