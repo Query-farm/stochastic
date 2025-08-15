@@ -37,6 +37,8 @@ src/distribution_uniform_int.cpp
 src/distribution_weibull.cpp
 src/distribution_rayleigh.cpp
 src/distribution_binomial.cpp
+src/distribution_negative_binomial.cpp
+src/distribution_poisson.cpp
 src/rng_utils.cpp
 )
 
