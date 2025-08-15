@@ -13,177 +13,177 @@ require quack
 
 # Test normal distribution PDF
 query R
-SELECT round(normal_pdf(0.0, 1.0, 0.0), 6);
+SELECT round(dist_normal_pdf(0.0, 1.0, 0.0), 6);
 ----
 0.398942
 
 # Test normal distribution PDF with different parameters
 query R
-SELECT round(normal_pdf(1.0, 2.0, 1.0), 6);
+SELECT round(dist_normal_pdf(1.0, 2.0, 1.0), 6);
 ----
 0.199471
 
 # Test normal distribution CDF at mean
 query R
-SELECT round(normal_cdf(0.0, 1.0, 0.0), 1);
+SELECT round(dist_normal_cdf(0.0, 1.0, 0.0), 1);
 ----
 0.5
 
 # Test normal distribution CDF
 query R
-SELECT round(normal_cdf(0.0, 1.0, 1.96), 3);
+SELECT round(dist_normal_cdf(0.0, 1.0, 1.96), 3);
 ----
 0.975
 
 # Test normal distribution quantile (inverse CDF)
 query R
-SELECT round(normal_quantile(0.0, 1.0, 0.5), 1);
+SELECT round(dist_normal_quantile(0.0, 1.0, 0.5), 1);
 ----
 0.0
 
 # Test normal distribution quantile for 95th percentile
 query R
-SELECT round(normal_quantile(0.0, 1.0, 0.975), 2);
+SELECT round(dist_normal_quantile(0.0, 1.0, 0.975), 2);
 ----
 1.96
 
 # Test normal distribution mean
 query R
-SELECT normal_mean(5.0, 2.0);
+SELECT dist_normal_mean(5.0, 2.0);
 ----
 5.0
 
 # Test normal distribution standard deviation
 query R
-SELECT normal_stddev(0.0, 3.0);
+SELECT dist_normal_stddev(0.0, 3.0);
 ----
 3.0
 
 # Test normal distribution variance
 query R
-SELECT normal_variance(0.0, 2.0);
+SELECT dist_normal_variance(0.0, 2.0);
 ----
 4.0
 
 # Test normal distribution mode (equals mean)
 query R
-SELECT normal_mode(10.0, 1.0);
+SELECT dist_normal_mode(10.0, 1.0);
 ----
 10.0
 
 # Test normal distribution median (equals mean)
 query R
-SELECT normal_median(-2.0, 1.5);
+SELECT dist_normal_median(-2.0, 1.5);
 ----
 -2.0
 
 # Test normal distribution skewness (always 0)
 query R
-SELECT normal_skewness(0.0, 1.0);
+SELECT dist_normal_skewness(0.0, 1.0);
 ----
 0.0
 
 # Test normal distribution kurtosis (always 3)
 query R
-SELECT normal_kurtosis(0.0, 1.0);
+SELECT dist_normal_kurtosis(0.0, 1.0);
 ----
 3.0
 
 # Test normal distribution excess kurtosis (always 0)
 query R
-SELECT normal_kurtosis_excess(0.0, 1.0);
+SELECT dist_normal_kurtosis_excess(0.0, 1.0);
 ----
 0.0
 
 # Test normal distribution log PDF
 query R
-SELECT round(normal_log_pdf(0.0, 1.0, 0.0), 6);
+SELECT round(dist_normal_log_pdf(0.0, 1.0, 0.0), 6);
 ----
 -0.918939
 
 # Test normal distribution CDF complement
 query R
-SELECT round(normal_cdf_complement(0.0, 1.0, 0.0), 1);
+SELECT round(dist_normal_cdf_complement(0.0, 1.0, 0.0), 1);
 ----
 0.5
 
 # Test normal distribution quantile complement
 query R
-SELECT round(normal_quantile_complement(0.0, 1.0, 0.025), 2);
+SELECT round(dist_normal_quantile_complement(0.0, 1.0, 0.025), 2);
 ----
 1.96
 
 # Test multiple values with normal distribution PDF
 query RR
-SELECT round(normal_pdf(0.0, 1.0, -1.0), 6), round(normal_pdf(0.0, 1.0, 1.0), 6);
+SELECT round(dist_normal_pdf(0.0, 1.0, -1.0), 6), round(dist_normal_pdf(0.0, 1.0, 1.0), 6);
 ----
 0.241971	0.241971
 
-# Test that normal_sample returns different values (check that it's not constant)
+# Test that dist_normal_sample returns different values (check that it's not constant)
 query I
-SELECT COUNT(DISTINCT normal_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+SELECT COUNT(DISTINCT dist_normal_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
 ----
 true
 
 # Test normal distribution with different means and standard deviations
 query RRR
-SELECT normal_mean(0.0, 1.0), normal_mean(5.0, 2.0), normal_mean(-3.0, 0.5);
+SELECT dist_normal_mean(0.0, 1.0), dist_normal_mean(5.0, 2.0), dist_normal_mean(-3.0, 0.5);
 ----
 0.0	5.0	-3.0
 
 # Test that PDF integrates to approximately 1 (using symmetry)
 query R
-SELECT round(2 * normal_cdf(0.0, 1.0, 3.0) - 1.0, 4);
+SELECT round(2 * dist_normal_cdf(0.0, 1.0, 3.0) - 1.0, 4);
 ----
 0.9973
 
 # Test normal distribution with negative standard deviation should work (absolute value used)
 query R
-SELECT round(normal_pdf(0.0, 1.0, 0.0), 6);
+SELECT round(dist_normal_pdf(0.0, 1.0, 0.0), 6);
 ----
 0.398942
 
 # Test normal distribution variance calculation
 query RR
-SELECT normal_variance(0.0, 1.0), normal_variance(0.0, 2.0);
+SELECT dist_normal_variance(0.0, 1.0), dist_normal_variance(0.0, 2.0);
 ----
 1.0	4.0
 
 # Test that CDF + CDF_complement = 1
 query R
-SELECT round(normal_cdf(0.0, 1.0, 1.5) + normal_cdf_complement(0.0, 1.0, 1.5), 1);
+SELECT round(dist_normal_cdf(0.0, 1.0, 1.5) + dist_normal_cdf_complement(0.0, 1.0, 1.5), 1);
 ----
 1.0
 
 # Test normal distribution log CDF
 query R
-SELECT round(normal_log_cdf(0.0, 1.0, 0.0), 6);
+SELECT round(dist_normal_log_cdf(0.0, 1.0, 0.0), 6);
 ----
 -0.693147
 
 # Test edge case: very large x value
 query R
-SELECT normal_cdf(0.0, 1.0, 10.0) > 0.9999;
+SELECT dist_normal_cdf(0.0, 1.0, 10.0) > 0.9999;
 ----
 true
 
 # Test edge case: very small x value
 query R
-SELECT normal_cdf(0.0, 1.0, -10.0) < 0.0001;
+SELECT dist_normal_cdf(0.0, 1.0, -10.0) < 0.0001;
 ----
 true
 
 query R
-SELECT normal_cdf(0.0, 1.0, -10.0) < 0.0001;
+SELECT dist_normal_cdf(0.0, 1.0, -10.0) < 0.0001;
 ----
 true
 
 query T
-SELECT normal_range(1, 1);
+SELECT dist_normal_range(1, 1);
 ----
 [-inf, inf]
 
 query T
-SELECT normal_support(1, 1);
+SELECT dist_normal_support(1, 1);
 ----
 [-inf, inf]

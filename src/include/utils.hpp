@@ -26,9 +26,10 @@ void RegisterFunction(DatabaseInstance &instance, const std::string &name, const
 	for (auto item : additional_params) {
 		final_types.push_back(item.second);
 	}
+	const auto prefix = string("dist_");
 
-	const auto final_name = string(string(distribution_traits<DistributionType>::prefix) + "_" + name);
-	const auto final_example = string(string(distribution_traits<DistributionType>::prefix) + "_" + example);
+	const auto final_name = string(prefix + string(distribution_traits<DistributionType>::prefix) + "_" + name);
+	const auto final_example = string(prefix + string(distribution_traits<DistributionType>::prefix) + "_" + example);
 
 	auto function =
 	    ScalarFunction(final_name, final_types, result_type, func, nullptr, nullptr, nullptr, nullptr,

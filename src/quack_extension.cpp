@@ -25,16 +25,16 @@ void Load_uniform_int_distribution(DatabaseInstance &instance);
 void Load_uniform_real_distribution(DatabaseInstance &instance);
 
 static void LoadInternal(DatabaseInstance &instance) {
-	Load_gamma_distribution(instance);
+	Load_bernoulli_distribution(instance);
 	Load_beta_distribution(instance);
+	Load_gamma_distribution(instance);
+	Load_geometric_distribution(instance);
 	Load_laplace_distribution(instance);
 	Load_lognormal_distribution(instance);
 	Load_normal_distribution(instance);
 	Load_pareto_distribution(instance);
-	Load_uniform_real_distribution(instance);
 	Load_uniform_int_distribution(instance);
-	Load_bernoulli_distribution(instance);
-	Load_geometric_distribution(instance);
+	Load_uniform_real_distribution(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {
