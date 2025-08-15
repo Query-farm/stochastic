@@ -31,6 +31,7 @@ void Load_weibull_distribution(DatabaseInstance &instance);
 void Load_extreme_value_distribution(DatabaseInstance &instance);
 void Load_rayleigh_distribution(DatabaseInstance &instance);
 void Load_logistic_distribution(DatabaseInstance &instance);
+void Load_binomial_distribution(DatabaseInstance &instance);
 
 static void LoadInternal(DatabaseInstance &instance) {
 	Load_bernoulli_distribution(instance);
@@ -51,6 +52,7 @@ static void LoadInternal(DatabaseInstance &instance) {
 	Load_extreme_value_distribution(instance);
 	Load_rayleigh_distribution(instance);
 	Load_logistic_distribution(instance);
+	Load_binomial_distribution(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {
