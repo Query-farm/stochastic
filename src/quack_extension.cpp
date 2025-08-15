@@ -15,6 +15,7 @@ namespace duckdb {
 
 static void LoadInternal(DatabaseInstance &instance) {
 	LoadDistributionNormal(instance);
+	LoadDistributionLogNormal(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {

@@ -52,46 +52,11 @@ void RegisterFunction(DatabaseInstance &instance, const std::string &name, const
 	ExtensionUtil::RegisterFunction(instance, info);
 }
 
-// Generic sampling function template for single parameter distributions
-template <typename DistributionType, typename Param1Type, typename ReturnType>
-inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &param_vector = args.data[0];
-
-	if (param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-		if (ConstantVector::IsNull(param_vector)) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-			ConstantVector::SetNull(result, true);
-			return;
-		}
-
-		const auto param = ConstantVector::GetData<Param1Type>(param_vector)[0];
-
-		// Create distribution once and reuse for constant vectors
-		DistributionType dist(param);
-		const auto results = FlatVector::GetData<ReturnType>(result);
-
-		for (size_t i = 0; i < args.size(); i++) {
-			results[i] = dist(rng);
-		}
-
-		// Set vector type appropriately
-		if (args.size() == 1) {
-			result.SetVectorType(VectorType::CONSTANT_VECTOR);
-		}
-		return;
-	}
-
-	// Handle non-constant vectors
-	UnaryExecutor::Execute<Param1Type, ReturnType>(param_vector, result, args.size(), [&](Param1Type param) {
-		DistributionType dist(param);
-		return dist(rng);
-	});
-}
-
 template <typename DistributionType, typename ReturnType>
 inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Vector &result) {
-	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
-	using DistParam2 = typename distribution_traits<DistributionType>::param2_t;
+	using traits = distribution_traits<DistributionType>;
+	using DistParam1 = typename traits::param1_t;
+	using DistParam2 = typename traits::param2_t;
 
 	auto &param1_vector = args.data[0];
 	auto &param2_vector = args.data[1];
@@ -124,7 +89,7 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 
 	// Handle non-constant vectors
 	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(param1_vector, param2_vector, result, args.size(),
-	                                                            [&](DistParam1 param1, DistParam2 param2) {
+	                                                            [](DistParam1 param1, DistParam2 param2) {
 		                                                            DistributionType dist(param1, param2);
 		                                                            return dist(rng);
 	                                                            });
@@ -292,5 +257,6 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 }
 
 void LoadDistributionNormal(DatabaseInstance &instance);
+void LoadDistributionLogNormal(DatabaseInstance &instance);
 
 } // namespace duckdb

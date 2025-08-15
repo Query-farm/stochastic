@@ -18,6 +18,8 @@ include_directories(src/include)
 
 set(EXTENSION_SOURCES src/quack_extension.cpp
 src/distribution_normal.cpp
+src/distribution_lognormal.cpp
+
 src/rng_utils.cpp
 )
 
