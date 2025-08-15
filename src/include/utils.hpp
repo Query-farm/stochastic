@@ -537,5 +537,6 @@ void Load_normal_distribution(DatabaseInstance &instance);
 void Load_pareto_distribution(DatabaseInstance &instance);
 void Load_uniform_real_distribution(DatabaseInstance &instance);
 void Load_uniform_int_distribution(DatabaseInstance &instance);
+void Load_bernoulli_distribution(DatabaseInstance &instance);
 
 } // namespace duckdb
