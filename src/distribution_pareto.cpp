@@ -14,7 +14,7 @@ struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
 	using param2_t = double;
 
 	static constexpr std::array<const char *, 2> param_names = {"alpha", "beta"};
-	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
+	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
@@ -28,7 +28,7 @@ struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
 
 // 	static constexpr std::array<const char *, 2> param_names = {"alpha", "beta"};
 
-// 	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
+// 	static constexpr const char* prefix = DISTRIBUTION_SHORT_NAME;
 
 // 	static std::vector<LogicalType> LogicalParamTypes() {
 // 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
