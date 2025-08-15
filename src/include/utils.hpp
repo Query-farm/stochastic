@@ -14,21 +14,40 @@
 #include <utility> // std::declval
 namespace duckdb {
 
-template <typename FuncType>
+template <typename DistributionType, typename FuncType>
 void RegisterFunction(DatabaseInstance &instance, const std::string &name, const FunctionStability &stability,
-                      const vector<LogicalType> &param_types, const LogicalType &result_type, FuncType func,
-                      const std::string &description, const std::string &example,
-                      const duckdb::vector<std::string> &param_names) {
+                      const LogicalType &result_type, FuncType func, const std::string &description,
+                      const std::string &example, vector<std::pair<string, LogicalType>> additional_params = {}) {
+
+	vector<LogicalType> final_types;
+	for (auto item : distribution_traits<DistributionType>::LogicalParamTypes()) {
+		final_types.push_back(item);
+	}
+	for (auto item : additional_params) {
+		final_types.push_back(item.second);
+	}
+
+	const auto final_name = string(distribution_traits<DistributionType>::prefix + "_" + name);
+	const auto final_example = string(distribution_traits<DistributionType>::prefix + "_" + example);
+
 	auto function =
-	    ScalarFunction(name, param_types, result_type, func, nullptr, nullptr, nullptr, nullptr, LogicalTypeId::INVALID,
-	                   stability, FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr);
+	    ScalarFunction(final_name, final_types, result_type, func, nullptr, nullptr, nullptr, nullptr,
+	                   LogicalTypeId::INVALID, stability, FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr);
 
 	CreateScalarFunctionInfo info(function);
 	FunctionDescription desc;
 	desc.description = description;
-	desc.examples.push_back(example);
-	desc.parameter_names = param_names;
-	desc.parameter_types = param_types;
+	desc.examples.push_back(final_example);
+
+	desc.parameter_types = final_types;
+
+	vector<string> final_names(begin(distribution_traits<DistributionType>::param_names),
+	                           end(distribution_traits<DistributionType>::param_names));
+	for (auto &item : additional_params) {
+		final_names.push_back(item.first);
+	}
+	desc.parameter_names = final_names;
+
 	info.descriptions.push_back(desc);
 	ExtensionUtil::RegisterFunction(instance, info);
 }
@@ -69,8 +88,11 @@ inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vec
 	});
 }
 
-template <typename DistributionType, typename Param1Type, typename Param2Type, typename ReturnType>
+template <typename DistributionType, typename ReturnType>
 inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Vector &result) {
+	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
+	using DistParam2 = typename distribution_traits<DistributionType>::param2_t;
+
 	auto &param1_vector = args.data[0];
 	auto &param2_vector = args.data[1];
 
@@ -82,8 +104,8 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 			return;
 		}
 
-		const auto param1 = ConstantVector::GetData<Param1Type>(param1_vector)[0];
-		const auto param2 = ConstantVector::GetData<Param2Type>(param2_vector)[0];
+		const auto param1 = ConstantVector::GetData<DistParam1>(param1_vector)[0];
+		const auto param2 = ConstantVector::GetData<DistParam2>(param2_vector)[0];
 
 		// Create distribution once and reuse for constant vectors
 		DistributionType dist(param1, param2);
@@ -101,8 +123,8 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 	}
 
 	// Handle non-constant vectors
-	BinaryExecutor::Execute<Param1Type, Param2Type, ReturnType>(param1_vector, param2_vector, result, args.size(),
-	                                                            [&](Param1Type param1, Param2Type param2) {
+	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(param1_vector, param2_vector, result, args.size(),
+	                                                            [&](DistParam1 param1, DistParam2 param2) {
 		                                                            DistributionType dist(param1, param2);
 		                                                            return dist(rng);
 	                                                            });
