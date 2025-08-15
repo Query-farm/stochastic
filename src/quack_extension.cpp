@@ -13,28 +13,36 @@
 
 namespace duckdb {
 
+void Load_chi_squared_distribution(DatabaseInstance &instance);
 void Load_geometric_distribution(DatabaseInstance &instance);
 void Load_bernoulli_distribution(DatabaseInstance &instance);
 void Load_beta_distribution(DatabaseInstance &instance);
 void Load_gamma_distribution(DatabaseInstance &instance);
+void Load_exponential_distribution(DatabaseInstance &instance);
 void Load_laplace_distribution(DatabaseInstance &instance);
 void Load_lognormal_distribution(DatabaseInstance &instance);
 void Load_normal_distribution(DatabaseInstance &instance);
 void Load_pareto_distribution(DatabaseInstance &instance);
 void Load_uniform_int_distribution(DatabaseInstance &instance);
 void Load_uniform_real_distribution(DatabaseInstance &instance);
+void Load_students_t_distribution(DatabaseInstance &instance);
+void Load_fisher_f_distribution(DatabaseInstance &instance);
 
 static void LoadInternal(DatabaseInstance &instance) {
 	Load_bernoulli_distribution(instance);
 	Load_beta_distribution(instance);
+	Load_chi_squared_distribution(instance);
+	Load_exponential_distribution(instance);
 	Load_gamma_distribution(instance);
 	Load_geometric_distribution(instance);
 	Load_laplace_distribution(instance);
 	Load_lognormal_distribution(instance);
 	Load_normal_distribution(instance);
 	Load_pareto_distribution(instance);
+	Load_students_t_distribution(instance);
 	Load_uniform_int_distribution(instance);
 	Load_uniform_real_distribution(instance);
+	Load_fisher_f_distribution(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {
