@@ -1,5 +1,5 @@
-# name: test/sql/quack.test
-# description: test quack extension
+# name: test/sql/normal.test
+# description: test normal distribution
 # group: [sql]
 
 # Before we load the extension, this will fail

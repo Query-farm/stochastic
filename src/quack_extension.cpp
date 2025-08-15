@@ -21,6 +21,7 @@ static void LoadInternal(DatabaseInstance &instance) {
 	Load_normal_distribution(instance);
 	Load_pareto_distribution(instance);
 	Load_uniform_real_distribution(instance);
+	Load_uniform_int_distribution(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {

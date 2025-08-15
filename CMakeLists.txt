@@ -25,6 +25,7 @@ src/distribution_beta.cpp
 src/distribution_gamma.cpp
 src/distribution_pareto.cpp
 src/distribution_uniform_real.cpp
+src/distribution_uniform_int.cpp
 src/rng_utils.cpp
 )
 

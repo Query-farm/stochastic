@@ -22,6 +22,13 @@ struct logical_type_map<double> {
 };
 
 template <>
+struct logical_type_map<int64_t> {
+	static LogicalType Get() {
+		return LogicalType::BIGINT;
+	}
+};
+
+template <>
 struct logical_type_map<std::pair<double, double>> {
 	static LogicalType Get() {
 		return LogicalType::ARRAY(LogicalType::DOUBLE, 2);
