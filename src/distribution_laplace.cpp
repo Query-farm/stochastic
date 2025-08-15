@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("laplace")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "laplace"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       laplace_distribution
 
 // Specialization for boost::random::normal_distribution<double>

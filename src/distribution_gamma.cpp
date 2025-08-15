@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("gamma")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "gamma"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       gamma_distribution
 // Specialization for boost::random::normal_distribution<double>
 template <>

@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("pareto")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "pareto"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       pareto_distribution
 // Specialization for boost::random::normal_distribution<double>
 template <>

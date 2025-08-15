@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("uniform_real")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "uniform_real"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       uniform_real_distribution
 
 template <>

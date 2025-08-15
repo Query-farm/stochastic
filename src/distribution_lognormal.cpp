@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("lognormal")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "lognormal"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       lognormal_distribution
 
 // Specialization for boost::random::normal_distribution<double>

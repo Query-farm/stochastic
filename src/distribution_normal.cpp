@@ -4,8 +4,8 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("normal")
-#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_SHORT_NAME "normal"
+#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       normal_distribution
 
 // Specialization for boost::random::normal_distribution<double>
@@ -37,9 +37,6 @@ struct distribution_traits<boost::random::normal_distribution<double>> {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
 };
-
-#define DISTRIBUTION_TEXT string("normal distribution")
-#define DISTRIBUTION_NAME normal_distribution
 
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
 #define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
