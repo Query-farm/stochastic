@@ -4,12 +4,12 @@
 
 # Before we load the extension, this will fail
 statement error
-SELECT quack('Sam');
+SELECT stochastic('Sam');
 ----
-Catalog Error: Scalar Function with name quack does not exist!
+Catalog Error: Scalar Function with name stochastic does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
-require quack
+require stochastic
 
 # Test normal distribution PDF
 query R
