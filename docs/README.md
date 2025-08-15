@@ -201,10 +201,9 @@ LIMIT 10;
 - **Performance**: Columnar processing with vectorized statistical operations
 - **Integration**: Works seamlessly with existing BI tools and SQL workflows
 - **Real-time**: Analyze streaming data without export/import cycles
-- **Reproducibility**: Deterministic results with proper random seeding
 
 ### 📊 **Performance Benefits**
-Statistical operations are vectorized and optimized for DuckDB's columnar engine, often outperforming equivalent Python/scipy operations on large datasets.
+Statistical operations are vectorized and optimized for DuckDB's columnar engine.
 
 ## Parameter Validation
 
