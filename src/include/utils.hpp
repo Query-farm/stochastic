@@ -256,7 +256,12 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 	}
 }
 
-void LoadDistributionNormal(DatabaseInstance &instance);
-void LoadDistributionLogNormal(DatabaseInstance &instance);
+void Load_gamma_distribution(DatabaseInstance &instance);
+void Load_beta_distribution(DatabaseInstance &instance);
+void Load_laplace_distribution(DatabaseInstance &instance);
+void Load_lognormal_distribution(DatabaseInstance &instance);
+void Load_normal_distribution(DatabaseInstance &instance);
+void Load_pareto_distribution(DatabaseInstance &instance);
+void Load_uniform_real_distribution(DatabaseInstance &instance);
 
 } // namespace duckdb

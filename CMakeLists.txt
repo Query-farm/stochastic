@@ -19,7 +19,12 @@ include_directories(src/include)
 set(EXTENSION_SOURCES src/quack_extension.cpp
 src/distribution_normal.cpp
 src/distribution_lognormal.cpp
-
+src/distribution_cauchy.cpp
+src/distribution_laplace.cpp
+src/distribution_beta.cpp
+src/distribution_gamma.cpp
+src/distribution_pareto.cpp
+src/distribution_uniform_real.cpp
 src/rng_utils.cpp
 )
 

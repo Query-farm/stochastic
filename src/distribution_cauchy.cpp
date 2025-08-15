@@ -4,19 +4,19 @@
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME string("normal")
+#define DISTRIBUTION_SHORT_NAME string("cauchy")
 #define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
-#define DISTRIBUTION_NAME       normal_distribution
+#define DISTRIBUTION_NAME       cauchy_distribution
 
 // Specialization for boost::random::normal_distribution<double>
 template <>
-struct distribution_traits<boost::math::normal_distribution<double>> {
-	using param1_t = double; // mean
-	using param2_t = double; // standard deviation
+struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
+	using param1_t = double; // location
+	using param2_t = double; // scale
 	                         //	using return_t = double; // result type
 
-	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
-	static constexpr string prefix = "normal";
+	static constexpr std::array<const char *, 2> param_names = {"location", "scale"};
+	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
@@ -24,22 +24,19 @@ struct distribution_traits<boost::math::normal_distribution<double>> {
 };
 
 template <>
-struct distribution_traits<boost::random::normal_distribution<double>> {
-	using param1_t = double; // mean
-	using param2_t = double; // standard deviation
+struct distribution_traits<boost::random::DISTRIBUTION_NAME<double>> {
+	using param1_t = double; // location
+	using param2_t = double; // scale
 	                         //	using return_t = double; // result type
 
-	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
+	static constexpr std::array<const char *, 2> param_names = {"location", "scale"};
 
-	static constexpr string prefix = "normal";
+	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
 };
-
-#define DISTRIBUTION_TEXT string("normal distribution")
-#define DISTRIBUTION_NAME normal_distribution
 
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
 #define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
@@ -152,17 +149,17 @@ LOAD_DISTRIBUTION_FN {
 
 	// === DISTRIBUTION PROPERTIES ===
 
-	REGISTER(instance, "mean", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return dist.mean(); }),
-	         "Returns the mean (μ) of the " + DISTRIBUTION_TEXT + ", which is the first moment.", "mean(0.0, 1.0)");
+	// REGISTER(instance, "mean", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::mean(dist); }),
+	//          "Returns the mean (μ) of the " + DISTRIBUTION_TEXT + ", which is the first moment.", "mean(0.0, 1.0)");
 
-	REGISTER(instance, "stddev", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return dist.standard_deviation(); }),
-	         "Returns the standard deviation (σ) of the " + DISTRIBUTION_TEXT + ".", "stddev(0.0, 1.0)");
+	// REGISTER(instance, "stddev", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::standard_deviation(dist); }),
+	//          "Returns the standard deviation (σ) of the " + DISTRIBUTION_TEXT + ".", "stddev(0.0, 1.0)");
 
-	REGISTER(instance, "variance", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return boost::math::variance(dist); }),
-	         "Returns the variance (σ²) of the " + DISTRIBUTION_TEXT + ".", "variance(0.0, 1.0)");
+	// REGISTER(instance, "variance", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::variance(dist); }),
+	//          "Returns the variance (σ²) of the " + DISTRIBUTION_TEXT + ".", "variance(0.0, 1.0)");
 
 	REGISTER(instance, "mode", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
 	         make_none([](const auto &dist) { return boost::math::mode(dist); }),
@@ -174,17 +171,17 @@ LOAD_DISTRIBUTION_FN {
 	         "Returns the median (50th percentile) of the " + DISTRIBUTION_TEXT + ", which equals the mean.",
 	         "median(0.0, 1.0)");
 
-	REGISTER(instance, "skewness", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return boost::math::skewness(dist); }),
-	         "Returns the skewness of the " + DISTRIBUTION_TEXT + ".", "skewness(0.0, 1.0)");
+	// REGISTER(instance, "skewness", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::skewness(dist); }),
+	//          "Returns the skewness of the " + DISTRIBUTION_TEXT + ".", "skewness(0.0, 1.0)");
 
-	REGISTER(instance, "kurtosis", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return boost::math::kurtosis(dist); }),
-	         "Returns the kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis(0.0, 1.0)");
+	// REGISTER(instance, "kurtosis", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::kurtosis(dist); }),
+	//          "Returns the kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis(0.0, 1.0)");
 
-	REGISTER(instance, "kurtosis_excess", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return boost::math::kurtosis_excess(dist); }),
-	         "Returns the excess kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis_excess(0.0, 1.0)");
+	// REGISTER(instance, "kurtosis_excess", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
+	//          make_none([](const auto &dist) { return boost::math::kurtosis_excess(dist); }),
+	//          "Returns the excess kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis_excess(0.0, 1.0)");
 
 	REGISTER(instance, "range", FunctionStability::CONSISTENT, LogicalType::ARRAY(LogicalType::DOUBLE, 2),
 	         make_none([](const auto &dist) { return boost::math::range(dist); }),

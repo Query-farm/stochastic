@@ -1,34 +1,21 @@
-/*
- * Normal Distribution Functions for DuckDB
- *
- * This file implements all normal distribution-related scalar functions including:
- * - Probability density function (PDF) and log-PDF
- * - Cumulative distribution function (CDF) and log-CDF
- * - Complementary CDF functions (survival functions)
- * - Quantile functions (inverse CDF)
- * - Distribution properties (mean, variance, skewness, etc.)
- * - Random sampling
- *
- * The normal distribution is parameterized by:
- * - mean (μ): location parameter, can be any real number
- * - stddev (σ): scale parameter, must be positive
- */
-
 #include "utils.hpp"
 #include "rng_utils.hpp"
 #include "distribution_traits.hpp"
 
 namespace duckdb {
 
+#define DISTRIBUTION_SHORT_NAME string("lognormal")
+#define DISTRIBUTION_TEXT       string(DISTRIBUTION_SHORT_NAME + " distribution")
+#define DISTRIBUTION_NAME       lognormal_distribution
+
 // Specialization for boost::random::normal_distribution<double>
 template <>
-struct distribution_traits<boost::math::lognormal_distribution<double>> {
-	using param1_t = double; // mean
-	using param2_t = double; // standard deviation
-	                         //	using return_t = double; // result type
+struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
+	using param1_t = double;
+	using param2_t = double;
 
 	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
-	static constexpr string prefix = "lognormal";
+	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
@@ -36,28 +23,29 @@ struct distribution_traits<boost::math::lognormal_distribution<double>> {
 };
 
 template <>
-struct distribution_traits<boost::random::lognormal_distribution<double>> {
-	using param1_t = double; // mean
-	using param2_t = double; // standard deviation
-	                         //	using return_t = double; // result type
+struct distribution_traits<boost::random::DISTRIBUTION_NAME<double>> {
+	using param1_t = double;
+	using param2_t = double;
 
 	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
 
-	static constexpr string prefix = "lognormal";
+	static constexpr string prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
 };
-
-#define DISTRIBUTION_TEXT string("lognormal distribution")
-#define DISTRIBUTION_NAME lognormal_distribution
 
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
 #define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
 #define REGISTER            RegisterFunction<DISTRIBUTION>
 
-void LoadDistributionLogNormal(DatabaseInstance &instance) {
+#define CONCAT(a, b)            a##b
+#define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)
+
+#define LOAD_DISTRIBUTION_FN void EXPAND_AND_CONCAT(Load_, DISTRIBUTION_NAME)(DatabaseInstance & instance)
+
+LOAD_DISTRIBUTION_FN {
 	vector<std::pair<string, LogicalType>> param_names_quantile = {{"p", LogicalType::DOUBLE}};
 	vector<std::pair<string, LogicalType>> param_names_unary = {{"x", LogicalType::DOUBLE}};
 

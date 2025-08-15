@@ -14,8 +14,13 @@
 namespace duckdb {
 
 static void LoadInternal(DatabaseInstance &instance) {
-	LoadDistributionNormal(instance);
-	LoadDistributionLogNormal(instance);
+	Load_gamma_distribution(instance);
+	Load_beta_distribution(instance);
+	Load_laplace_distribution(instance);
+	Load_lognormal_distribution(instance);
+	Load_normal_distribution(instance);
+	Load_pareto_distribution(instance);
+	Load_uniform_real_distribution(instance);
 }
 
 void QuackExtension::Load(DuckDB &db) {
