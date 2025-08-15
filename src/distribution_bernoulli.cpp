@@ -8,35 +8,36 @@ namespace duckdb {
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       bernoulli_distribution
 
-// Specialization for boost::random::normal_distribution<double>
-template <>
-struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
-	using param1_t = double;
-
-	static constexpr std::array<const char *, 1> param_names = {"p"};
-	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
-
-	static std::vector<LogicalType> LogicalParamTypes() {
-		return {logical_type_map<param1_t>::Get()};
-	}
-};
-
-template <>
-struct distribution_traits<boost::random::DISTRIBUTION_NAME<double>> {
-	using param1_t = double;
-
-	static constexpr std::array<const char *, 1> param_names = {"p"};
-
-	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
-
-	static std::vector<LogicalType> LogicalParamTypes() {
-		return {logical_type_map<param1_t>::Get()};
-	}
-};
-
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
 #define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
 #define REGISTER            RegisterFunction<DISTRIBUTION>
+
+template <typename DistType>
+struct distribution_traits_base {
+	using param1_t = double;
+	using return_t = double;
+
+	static constexpr std::array<const char *, 1> param_names = {"p"};
+	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
+
+	static std::vector<LogicalType> LogicalParamTypes() {
+		return {logical_type_map<param1_t>::Get()};
+	}
+
+	static void ValidateParameters(param1_t p) {
+		if (p < 0 || p > 1) {
+			throw InvalidInputException(string(DISTRIBUTION_SHORT_NAME) +
+			                            ": Probability must be between 0 and 1 was: " + std::to_string(p));
+		}
+	}
+};
+
+#define DEFINE_DIST_TRAITS(DIST)                                                                                       \
+	template <>                                                                                                        \
+	struct distribution_traits<DIST> : public distribution_traits_base<DIST> {};
+
+DEFINE_DIST_TRAITS(DISTRIBUTION);
+DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
 
 #define CONCAT(a, b)            a##b
 #define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)

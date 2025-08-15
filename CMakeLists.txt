@@ -16,19 +16,18 @@ set(CMAKE_CXX_STANDARD 20)
 project(${TARGET_NAME})
 include_directories(src/include)
 
-
 set(EXTENSION_SOURCES src/quack_extension.cpp
 src/distribution_normal.cpp
+src/distribution_beta.cpp
+src/distribution_bernoulli.cpp
+src/distribution_laplace.cpp
 src/distribution_lognormal.cpp
 src/distribution_cauchy.cpp
-src/distribution_laplace.cpp
-src/distribution_beta.cpp
 src/distribution_gamma.cpp
+src/distribution_geometric.cpp
 src/distribution_pareto.cpp
 src/distribution_uniform_real.cpp
 src/distribution_uniform_int.cpp
-src/distribution_bernoulli.cpp
-src/distribution_geometric.cpp
 src/rng_utils.cpp
 )
 

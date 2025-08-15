@@ -7,11 +7,15 @@ namespace duckdb {
 #define DISTRIBUTION_SHORT_NAME "uniform_int"
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       uniform_int_distribution
+#define DISTRIBUTION            boost::math::uniform_distribution<int64_t>
+#define SAMPLE_DISTRIBUTION     boost::random::uniform_int_distribution<int64_t>
+#define REGISTER                RegisterFunction<DISTRIBUTION>
 
-template <>
-struct distribution_traits<boost::math::uniform_distribution<int64_t>> {
-	using param1_t = int64_t;
-	using param2_t = int64_t;
+template <typename DistType>
+struct distribution_traits_base {
+	using param1_t = double;
+	using param2_t = double;
+	using return_t = double;
 
 	static constexpr std::array<const char *, 2> param_names = {"min", "max"};
 	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
@@ -19,25 +23,21 @@ struct distribution_traits<boost::math::uniform_distribution<int64_t>> {
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
-};
 
-template <>
-struct distribution_traits<boost::random::uniform_int_distribution<int64_t>> {
-	using param1_t = int64_t;
-	using param2_t = int64_t;
-
-	static constexpr std::array<const char *, 2> param_names = {"min", "max"};
-
-	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
-
-	static std::vector<LogicalType> LogicalParamTypes() {
-		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
+	static void ValidateParameters(param1_t min, param2_t max) {
+		if (min >= max) {
+			throw InvalidInputException(string(DISTRIBUTION_SHORT_NAME) + ": Min must be < Max was: " +
+			                            std::to_string(min) + " >= " + std::to_string(max));
+		}
 	}
 };
 
-#define DISTRIBUTION        boost::math::uniform_distribution<int64_t>
-#define SAMPLE_DISTRIBUTION boost::random::uniform_int_distribution<int64_t>
-#define REGISTER            RegisterFunction<DISTRIBUTION>
+#define DEFINE_DIST_TRAITS(DIST)                                                                                       \
+	template <>                                                                                                        \
+	struct distribution_traits<DIST> : public distribution_traits_base<DIST> {};
+
+DEFINE_DIST_TRAITS(DISTRIBUTION);
+DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
 
 #define CONCAT(a, b)            a##b
 #define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)

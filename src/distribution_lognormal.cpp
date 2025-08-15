@@ -7,12 +7,15 @@ namespace duckdb {
 #define DISTRIBUTION_SHORT_NAME "lognormal"
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       lognormal_distribution
+#define DISTRIBUTION            boost::math::DISTRIBUTION_NAME<double>
+#define SAMPLE_DISTRIBUTION     boost::random::DISTRIBUTION_NAME<double>
+#define REGISTER                RegisterFunction<DISTRIBUTION>
 
-// Specialization for boost::random::normal_distribution<double>
-template <>
-struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
-	using param1_t = double;
-	using param2_t = double;
+template <typename DistType>
+struct distribution_traits_base {
+	using param1_t = double; // mean
+	using param2_t = double; // standard deviation
+	using return_t = double; // result type
 
 	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
 	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
@@ -20,25 +23,21 @@ struct distribution_traits<boost::math::DISTRIBUTION_NAME<double>> {
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
-};
 
-template <>
-struct distribution_traits<boost::random::DISTRIBUTION_NAME<double>> {
-	using param1_t = double;
-	using param2_t = double;
-
-	static constexpr std::array<const char *, 2> param_names = {"mean", "stddev"};
-
-	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
-
-	static std::vector<LogicalType> LogicalParamTypes() {
-		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
+	static void ValidateParameters(param1_t mean, param2_t stddev) {
+		if (stddev <= 0) {
+			throw InvalidInputException(string(DISTRIBUTION_SHORT_NAME) +
+			                            ": Standard deviation must be > 0 was: " + std::to_string(stddev));
+		}
 	}
 };
 
-#define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
-#define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
-#define REGISTER            RegisterFunction<DISTRIBUTION>
+#define DEFINE_DIST_TRAITS(DIST)                                                                                       \
+	template <>                                                                                                        \
+	struct distribution_traits<DIST> : public distribution_traits_base<DIST> {};
+
+DEFINE_DIST_TRAITS(DISTRIBUTION);
+DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
 
 #define CONCAT(a, b)            a##b
 #define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)

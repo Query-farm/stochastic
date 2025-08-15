@@ -69,6 +69,7 @@ inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vec
 
 		const auto param1 = ConstantVector::GetData<DistParam1>(param1_vector)[0];
 
+		distribution_traits<DistributionType>::ValidateParameters(param1);
 		// Create distribution once and reuse for constant vectors
 		DistributionType dist(param1);
 		const auto results = FlatVector::GetData<ReturnType>(result);
@@ -86,6 +87,7 @@ inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vec
 
 	// Handle non-constant vectors
 	UnaryExecutor::Execute<DistParam1, ReturnType>(param1_vector, result, args.size(), [](DistParam1 param1) {
+		distribution_traits<DistributionType>::ValidateParameters(param1);
 		DistributionType dist(param1);
 		return dist(rng);
 	});
@@ -111,7 +113,7 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 		const auto param1 = ConstantVector::GetData<DistParam1>(param1_vector)[0];
 		const auto param2 = ConstantVector::GetData<DistParam2>(param2_vector)[0];
 
-		// Create distribution once and reuse for constant vectors
+		distribution_traits<DistributionType>::ValidateParameters(param1, param2);
 		DistributionType dist(param1, param2);
 		const auto results = FlatVector::GetData<ReturnType>(result);
 
@@ -127,11 +129,12 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 	}
 
 	// Handle non-constant vectors
-	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(param1_vector, param2_vector, result, args.size(),
-	                                                            [](DistParam1 param1, DistParam2 param2) {
-		                                                            DistributionType dist(param1, param2);
-		                                                            return dist(rng);
-	                                                            });
+	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(
+	    param1_vector, param2_vector, result, args.size(), [](DistParam1 param1, DistParam2 param2) {
+		    distribution_traits<DistributionType>::ValidateParameters(param1, param2);
+		    DistributionType dist(param1, param2);
+		    return dist(rng);
+	    });
 }
 
 template <typename DistributionType, typename CallParam, typename Func>
@@ -162,6 +165,7 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 		const auto call_param = ConstantVector::GetData<CallParam>(call_param_vector)[0];
 
 		// Create distribution once for constant case
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1, dist_param2);
 		DistributionType dist(dist_param1, dist_param2);
 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
@@ -181,6 +185,7 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 
 		const auto dist_param1 = ConstantVector::GetData<DistParam1>(dist_param1_vector)[0];
 		const auto dist_param2 = ConstantVector::GetData<DistParam2>(dist_param2_vector)[0];
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1, dist_param2);
 		DistributionType dist(dist_param1, dist_param2);
 
 		UnaryExecutor::Execute<CallParam, ReturnType>(call_param_vector, result, args.size(),
@@ -192,6 +197,7 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 	TernaryExecutor::Execute<DistParam1, DistParam2, CallParam, ReturnType>(
 	    dist_param1_vector, dist_param2_vector, call_param_vector, result, args.size(),
 	    [&](DistParam1 dist_param1, DistParam2 dist_param2, CallParam call_param) {
+		    distribution_traits<DistributionType>::ValidateParameters(dist_param1, dist_param2);
 		    DistributionType dist(dist_param1, dist_param2);
 		    return op(dist, call_param);
 	    });
@@ -220,6 +226,7 @@ inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, 
 		const auto call_param = ConstantVector::GetData<CallParam>(call_param_vector)[0];
 
 		// Create distribution once for constant case
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1);
 		DistributionType dist(dist_param1);
 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
@@ -237,6 +244,7 @@ inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, 
 		}
 
 		const auto dist_param1 = ConstantVector::GetData<DistParam1>(dist_param1_vector)[0];
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1);
 		DistributionType dist(dist_param1);
 
 		UnaryExecutor::Execute<CallParam, ReturnType>(call_param_vector, result, args.size(),
@@ -247,6 +255,7 @@ inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, 
 	// Handle general case where both parameters vary
 	BinaryExecutor::Execute<DistParam1, CallParam, ReturnType>(
 	    dist_param1_vector, call_param_vector, result, args.size(), [&](DistParam1 dist_param1, CallParam call_param) {
+		    distribution_traits<DistributionType>::ValidateParameters(dist_param1);
 		    DistributionType dist(dist_param1);
 		    return op(dist, call_param);
 	    });
@@ -280,6 +289,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		const auto dist_param2 = ConstantVector::GetData<DistParam2>(dist_param2_vector)[0];
 
 		// Create distribution once for constant case
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1, dist_param2);
 		DistributionType dist(dist_param1, dist_param2);
 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
@@ -328,6 +338,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 					auto dist_param2_entry =
 					    UnifiedVectorFormat::GetData<DistParam2>(dist_param2_data)[dist_param2_index];
 
+					distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry, dist_param2_entry);
 					DistributionType dist(dist_param1_entry, dist_param2_entry);
 					auto op_result = op(result, dist);
 					result_data[i * 2] = op_result.first;
@@ -342,6 +353,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_entry = dist_param1_entries[dist_param1_data.sel->get_index(i)];
 				auto dist_param2_entry = dist_param2_entries[dist_param2_data.sel->get_index(i)];
+				distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry, dist_param2_entry);
 				DistributionType dist(dist_param1_entry, dist_param2_entry);
 				auto op_result = op(result, dist);
 				result_data[i * 2] = op_result.first;
@@ -372,6 +384,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 					auto dist_param2_entry =
 					    UnifiedVectorFormat::GetData<DistParam2>(dist_param2_data)[dist_param2_index];
 
+					distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry, dist_param2_entry);
 					DistributionType dist(dist_param1_entry, dist_param2_entry);
 					auto op_result = op(result, dist);
 					result_data[i * 2] = op_result.first;
@@ -386,6 +399,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_entry = dist_param1_entries[dist_param1_data.sel->get_index(i)];
 				auto dist_param2_entry = dist_param2_entries[dist_param2_data.sel->get_index(i)];
+				distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry, dist_param2_entry);
 				DistributionType dist(dist_param1_entry, dist_param2_entry);
 				auto op_result = op(result, dist);
 				result_data[i * 2] = op_result.first;
@@ -396,6 +410,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		BinaryExecutor::Execute<DistParam1, DistParam2, FuncReturnType>(
 		    dist_param1_vector, dist_param2_vector, result, args.size(),
 		    [&](DistParam1 dist_param1, DistParam2 dist_param2) {
+			    distribution_traits<DistributionType>::ValidateParameters(dist_param1, dist_param2);
 			    DistributionType dist(dist_param1, dist_param2);
 			    return op(result, dist);
 		    });
@@ -425,6 +440,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		const auto dist_param1 = ConstantVector::GetData<DistParam1>(dist_param1_vector)[0];
 
 		// Create distribution once for constant case
+		distribution_traits<DistributionType>::ValidateParameters(dist_param1);
 		DistributionType dist(dist_param1);
 
 		result.SetVectorType(VectorType::CONSTANT_VECTOR);
@@ -467,6 +483,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 					auto dist_param1_entry =
 					    UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data)[dist_param1_index];
 
+					distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry);
 					DistributionType dist(dist_param1_entry);
 					auto op_result = op(result, dist);
 					result_data[i * 2] = op_result.first;
@@ -479,6 +496,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 			auto dist_param1_entries = UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_entry = dist_param1_entries[dist_param1_data.sel->get_index(i)];
+				distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry);
 				DistributionType dist(dist_param1_entry);
 				auto op_result = op(result, dist);
 				result_data[i * 2] = op_result.first;
@@ -503,6 +521,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 					auto dist_param1_entry =
 					    UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data)[dist_param1_index];
 
+					distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry);
 					DistributionType dist(dist_param1_entry);
 					auto op_result = op(result, dist);
 					result_data[i * 2] = op_result.first;
@@ -515,6 +534,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 			auto dist_param1_entries = UnifiedVectorFormat::GetData<DistParam1>(dist_param1_data);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_entry = dist_param1_entries[dist_param1_data.sel->get_index(i)];
+				distribution_traits<DistributionType>::ValidateParameters(dist_param1_entry);
 				DistributionType dist(dist_param1_entry);
 				auto op_result = op(result, dist);
 				result_data[i * 2] = op_result.first;
@@ -522,11 +542,12 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 			}
 		}
 	} else {
-		UnaryExecutor::Execute<DistParam1, FuncReturnType>(dist_param1_vector, result, args.size(),
-		                                                   [&](DistParam1 dist_param1) {
-			                                                   DistributionType dist(dist_param1);
-			                                                   return op(result, dist);
-		                                                   });
+		UnaryExecutor::Execute<DistParam1, FuncReturnType>(
+		    dist_param1_vector, result, args.size(), [&](DistParam1 dist_param1) {
+			    distribution_traits<DistributionType>::ValidateParameters(dist_param1);
+			    DistributionType dist(dist_param1);
+			    return op(result, dist);
+		    });
 	}
 }
 
