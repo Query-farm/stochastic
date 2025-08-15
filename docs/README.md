@@ -1,146 +1,225 @@
-# DuckDB Extension Template
-This repository contains a template for creating a DuckDB extension. The main goal of this template is to allow users to easily develop, test and distribute their own DuckDB extension. The main branch of the template is always based on the latest stable DuckDB allowing you to try out your extension right away.
+# Stochastic Extension for DuckDB
 
-## Getting started
-First step to getting started is to create your own repo from this template by clicking `Use this template`. Then clone your new repository using
-```sh
-git clone --recurse-submodules https://github.com/<you>/<your-new-extension-repo>.git
-```
-Note that `--recurse-submodules` will ensure DuckDB is pulled which is required to build the extension.
+The `stochastic` extension adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
 
-## Building
-### Managing dependencies
-DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:
-```shell
-cd <your-working-dir-not-the-plugin-repo>
-git clone https://github.com/Microsoft/vcpkg.git
-sh ./vcpkg/scripts/bootstrap.sh -disableMetrics
-export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
-```
-Note: VCPKG is only required for extensions that want to rely on it for dependency management. If you want to develop an extension without dependencies, or want to do your own dependency management, just skip this step. Note that the example extension uses VCPKG to build with a dependency for instructive purposes, so when skipping this step the build may not work without removing the dependency.
+## Installation
 
-### Build steps
-Now to build the extension, run:
-```sh
-make
-```
-The main binaries that will be built are:
-```sh
-./build/release/duckdb
-./build/release/test/unittest
-./build/release/extension/<extension_name>/<extension_name>.duckdb_extension
-```
-- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
-- `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `<extension_name>.duckdb_extension` is the loadable binary as it would be distributed.
+**`stochastic` is a [DuckDB Community Extension](https://github.com/duckdb/community-extensions).**
 
-### Tips for speedy builds
-DuckDB extensions currently rely on DuckDB's build system to provide easy testing and distributing. This does however come at the downside of requiring the template to build DuckDB and its unittest binary every time you build your extension. To mitigate this, we highly recommend installing [ccache](https://ccache.dev/) and [ninja](https://ninja-build.org/). This will ensure you only need to build core DuckDB once and allows for rapid rebuilds.
+You can install and use it in DuckDB SQL:
 
-To build using ninja and ccache ensure both are installed and run:
-
-```sh
-GEN=ninja make
+```sql
+INSTALL stochastic FROM community;
+LOAD stochastic;
 ```
 
-## Running the extension
-To run the extension code, simply start the shell with `./build/release/duckdb`. This shell will have the extension pre-loaded.
+## What are statistical distributions?
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `stochastic()` that takes a string arguments and returns a string:
+Statistical distributions are mathematical functions that describe the probability of different outcomes in a dataset. They are fundamental to statistics, data science, machine learning, and scientific computing. This extension provides functions to:
+
+- Calculate probability density and mass functions (PDF/PMF)
+- Compute cumulative distribution functions (CDF)
+- Generate quantiles (inverse CDF)
+- Sample random values from distributions
+- Access distribution properties (mean, variance, etc.)
+
+## Available Distributions
+
+The extension supports a comprehensive set of probability distributions:
+
+### Continuous Distributions
+- **Normal (Gaussian)** - `dist_normal_*` functions
+- **Beta** - `dist_beta_*` functions
+- **Gamma** - `dist_gamma_*` functions
+- **Exponential** - `dist_exponential_*` functions
+- **Uniform (Real)** - `dist_uniform_real_*` functions
+- **Log-normal** - `dist_lognormal_*` functions
+- **Student's t** - `dist_students_t_*` functions
+- **Chi-squared** - `dist_chi_squared_*` functions
+- **Fisher F** - `dist_fisher_f_*` functions
+- **Weibull** - `dist_weibull_*` functions
+- **Pareto** - `dist_pareto_*` functions
+- **Cauchy** - `dist_cauchy_*` functions
+- **Extreme Value** - `dist_extreme_value_*` functions
+- **Rayleigh** - `dist_rayleigh_*` functions
+- **Logistic** - `dist_logistic_*` functions
+
+### Discrete Distributions
+- **Binomial** - `dist_binomial_*` functions
+- **Bernoulli** - `dist_bernoulli_*` functions
+- **Poisson** - `dist_poisson_*` functions
+- **Negative Binomial** - `dist_negative_binomial_*` functions
+- **Uniform (Integer)** - `dist_uniform_int_*` functions
+
+## Function Categories
+
+Each distribution provides the following function types:
+
+### Sampling Functions
+- `dist_{distribution}_sample(params...)` - Generate random samples
+
+### Density/Mass Functions
+- `dist_{distribution}_pdf(params..., x)` - Probability density function
+- `dist_{distribution}_log_pdf(params..., x)` - Log probability density function
+
+### Cumulative Functions
+- `dist_{distribution}_cdf(params..., x)` - Cumulative distribution function
+- `dist_{distribution}_log_cdf(params..., x)` - Log cumulative distribution function
+- `dist_{distribution}_cdf_complement(params..., x)` - Survival function (1 - CDF)
+- `dist_{distribution}_log_cdf_complement(params..., x)` - Log survival function
+
+### Quantile Functions
+- `dist_{distribution}_quantile(params..., p)` - Quantile function (inverse CDF)
+- `dist_{distribution}_quantile_complement(params..., p)` - Complementary quantile function
+
+### Hazard Functions
+- `dist_{distribution}_hazard(params..., x)` - Hazard function
+- `dist_{distribution}_chf(params..., x)` - Cumulative hazard function
+
+### Distribution Properties
+- `dist_{distribution}_mean(params...)` - Expected value
+- `dist_{distribution}_variance(params...)` - Variance
+- `dist_{distribution}_stddev(params...)` - Standard deviation
+- `dist_{distribution}_mode(params...)` - Mode (most likely value)
+- `dist_{distribution}_median(params...)` - Median (50th percentile)
+- `dist_{distribution}_skewness(params...)` - Skewness
+- `dist_{distribution}_kurtosis(params...)` - Kurtosis
+- `dist_{distribution}_kurtosis_excess(params...)` - Excess kurtosis
+- `dist_{distribution}_range(params...)` - Support range
+- `dist_{distribution}_support(params...)` - Distribution support
+
+## Usage Examples
+
+### Normal Distribution
+
+```sql
+-- Generate random samples from N(0, 1)
+SELECT dist_normal_sample(0.0, 1.0) AS random_value;
+
+-- Calculate PDF at x = 0.5 for N(0, 1)
+SELECT dist_normal_pdf(0.0, 1.0, 0.5) AS density;
+
+-- Calculate CDF (probability that X ≤ 1.96)
+SELECT dist_normal_cdf(0.0, 1.0, 1.96) AS probability;
+
+-- Find 95th percentile
+SELECT dist_normal_quantile(0.0, 1.0, 0.95) AS percentile_95;
+
+-- Get distribution properties
+SELECT
+    dist_normal_mean(0.0, 1.0) AS mean,
+    dist_normal_variance(0.0, 1.0) AS variance,
+    dist_normal_skewness(0.0, 1.0) AS skewness;
 ```
-D select stochastic('Jane') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ Stochastic Jane 🐥 │
-└───────────────┘
+
+### Binomial Distribution
+
+```sql
+-- Probability mass function for 10 trials, p=0.3
+SELECT dist_binomial_pdf(10, 0.3, 7) AS prob_exactly_7;
+
+-- Cumulative probability (≤ 5 successes)
+SELECT dist_binomial_cdf(10, 0.3, 5) AS prob_at_most_5;
+
+-- Generate random binomial samples
+SELECT dist_binomial_sample(10, 0.3) AS random_successes;
 ```
 
-## Running the tests
-Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
-```sh
-make test
+### Working with Data Tables
+
+```sql
+-- Generate synthetic dataset
+CREATE TABLE synthetic_data AS
+SELECT
+    i,
+    dist_normal_sample(100, 15) AS height_cm,
+    dist_normal_sample(70, 10) AS weight_kg,
+    dist_binomial_sample(1, 0.5) AS gender  -- 0 or 1
+FROM range(1000) t(i);
+
+-- Calculate z-scores
+SELECT
+    height_cm,
+    (height_cm - dist_normal_mean(100, 15)) / dist_normal_stddev(100, 15) AS height_zscore
+FROM synthetic_data;
+
+-- Probability calculations
+SELECT
+    weight_kg,
+    dist_normal_cdf(70, 10, weight_kg) AS percentile
+FROM synthetic_data
+LIMIT 10;
 ```
 
-## Getting started with your own extension
-After creating a repository from this template, the first step is to name your extension. To rename the extension, run:
+## Real-World Applications
+
+### A/B Testing and Statistical Significance
+**Common Task**: Determine if there's a statistically significant difference between conversion rates.
+**Relevant Functions**: `dist_normal_cdf`, `dist_normal_cdf_complement`, `dist_normal_pdf`
+
+### Financial Risk Assessment and VaR Calculation
+**Common Task**: Calculate Value at Risk (VaR) for portfolio management.
+**Relevant Functions**: `dist_normal_sample`, `dist_normal_quantile`, `dist_normal_cdf`
+
+### Quality Control and Process Monitoring
+**Common Task**: Monitor manufacturing processes and detect out-of-control conditions.
+**Relevant Functions**: `dist_normal_sample`, `dist_normal_cdf`, `dist_normal_pdf`
+
+### Predictive Analytics and Confidence Intervals
+**Common Task**: Build prediction intervals for forecasting models.
+**Relevant Functions**: `dist_normal_quantile`, `dist_normal_cdf`, `dist_normal_sample`
+
+### Customer Analytics and CLV Modeling
+**Common Task**: Model customer lifetime value with uncertainty quantification.
+**Relevant Functions**: `dist_normal_sample`, `dist_exponential_sample`, `dist_normal_quantile`, `dist_normal_cdf`
+
+### Anomaly Detection and Outlier Analysis
+**Common Task**: Detect anomalies in time series data using statistical methods.
+**Relevant Functions**: `dist_normal_pdf`, `dist_normal_cdf`, `dist_normal_cdf_complement`
+
+### Monte Carlo Simulations
+**Common Task**: Run Monte Carlo simulations for risk analysis, optimization, or modeling.
+**Relevant Functions**: `dist_normal_sample`, `dist_uniform_real_sample`, `dist_gamma_sample`, `dist_beta_sample`
+
+### Hypothesis Testing
+**Common Task**: Perform statistical hypothesis tests (t-tests, chi-square tests, etc.).
+**Relevant Functions**: `dist_students_t_cdf`, `dist_chi_squared_cdf`, `dist_normal_cdf`, `dist_fisher_f_cdf`
+
+### Bayesian Analysis
+**Common Task**: Implement Bayesian statistical models and posterior analysis.
+**Relevant Functions**: `dist_beta_pdf`, `dist_gamma_pdf`, `dist_normal_pdf`, `dist_beta_sample`
+
+### Survival Analysis
+**Common Task**: Analyze time-to-event data in medical research or reliability engineering.
+**Relevant Functions**: `dist_exponential_pdf`, `dist_weibull_pdf`, `dist_gamma_pdf`, `dist_exponential_cdf`
+
+## Why Use DuckDB + Stochastic vs Python/R?
+
+### ✅ **Advantages**
+- **No Data Movement**: Analysis happens where your data lives
+- **SQL Familiarity**: Use existing SQL skills instead of learning specialized libraries
+- **Performance**: Columnar processing with vectorized statistical operations
+- **Integration**: Works seamlessly with existing BI tools and SQL workflows
+- **Real-time**: Analyze streaming data without export/import cycles
+- **Reproducibility**: Deterministic results with proper random seeding
+
+### 📊 **Performance Benefits**
+Statistical operations are vectorized and optimized for DuckDB's columnar engine, often outperforming equivalent Python/scipy operations on large datasets.
+
+## Parameter Validation
+
+All distribution functions include comprehensive parameter validation:
+
+```sql
+-- This will throw an error: standard deviation must be > 0
+SELECT dist_normal_pdf(0.0, -1.0, 0.5);
+-- Error: normal: Standard deviation must be > 0 was: -1.000000
+
+-- This will throw an error: probability must be between 0 and 1
+SELECT dist_binomial_pdf(10, 1.5, 5);
+-- Error: binomial: Probability must be between 0 and 1 was: 1.500000
 ```
-python3 ./scripts/bootstrap-template.py <extension_name_you_want>
-```
-Feel free to delete the script after this step.
 
-Now you're good to go! After a (re)build, you should now be able to use your duckdb extension:
-```
-./build/release/duckdb
-D select <extension_name_you_chose>('Jane') as result;
-┌─────────────────────────────────────┐
-│                result               │
-│               varchar               │
-├─────────────────────────────────────┤
-│ <extension_name_you_chose> Jane 🐥  │
-└─────────────────────────────────────┘
-```
+## License
 
-For inspiration/examples on how to extend DuckDB in a more meaningful way, check out the [test extensions](https://github.com/duckdb/duckdb/blob/main/test/extension),
-the [in-tree extensions](https://github.com/duckdb/duckdb/tree/main/extension), and the [out-of-tree extensions](https://github.com/duckdblabs).
-
-## Distributing your extension
-To distribute your extension binaries, there are a few options.
-
-### Community extensions
-The recommended way of distributing extensions is through the [community extensions repository](https://github.com/duckdb/community-extensions).
-This repository is designed specifically for extensions that are built using this extension template, meaning that as long as your extension can be
-built using the default CI in this template, submitting it to the community extensions is a very simple process. The process works similarly to popular
-package managers like homebrew and vcpkg, where a PR containing a descriptor file is submitted to the package manager repository. After the CI in the
-community extensions repository completes, the extension can be installed and loaded in DuckDB with:
-```SQL
-INSTALL <my_extension> FROM community;
-LOAD <my_extension>
-```
-For more information, see the [community extensions documentation](https://duckdb.org/community_extensions/documentation).
-
-### Downloading artifacts from GitHub
-The default CI in this template will automatically upload the binaries for every push to the main branch as GitHub Actions artifacts. These
-can be downloaded manually and then loaded directly using:
-```SQL
-LOAD '/path/to/downloaded/extension.duckdb_extension';
-```
-Note that this will require starting DuckDB with the
-`allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. For the CLI it is done like:
-```shell
-duckdb -unsigned
-```
-
-### Uploading to a custom repository
-If for some reason distributing through community extensions is not an option, extensions can also be uploaded to a custom extension repository.
-This will give some more control over where and how the extensions are distributed, but comes with the downside of requiring the `allow_unsigned_extensions`
-option to be set. For examples of how to configure a manual GitHub Actions deploy pipeline, check out the extension deploy script in https://github.com/duckdb/extension-ci-tools.
-Some examples of extensions that use this CI/CD workflow check out [spatial](https://github.com/duckdblabs/duckdb_spatial) or [aws](https://github.com/duckdb/duckdb_aws).
-
-Extensions in custom repositories can be installed and loaded using:
-```SQL
-INSTALL <my_extension> FROM 'http://my-custom-repo'
-LOAD <my_extension>
-```
-
-### Versioning of your extension
-Extension binaries will only work for the specific DuckDB version they were built for. The version of DuckDB that is targeted
-is set to the latest stable release for the main branch of the template so initially that is all you need. As new releases
-of DuckDB are published however, the extension repository will need to be updated. The template comes with a workflow set-up
-that will automatically build the binaries for all DuckDB target architectures that are available in the corresponding DuckDB
-version. This workflow is found in `.github/workflows/MainDistributionPipeline.yml`. It is up to the extension developer to keep
-this up to date with DuckDB. Note also that its possible to distribute binaries for multiple DuckDB versions in this workflow
-by simply duplicating the jobs.
-
-## Setting up CLion
-
-### Opening project
-Configuring CLion with the extension template requires a little work. Firstly, make sure that the DuckDB submodule is available.
-Then make sure to open `./duckdb/CMakeLists.txt` (so not the top level `CMakeLists.txt` file from this repo) as a project in CLion.
-Now to fix your project path go to `tools->CMake->Change Project Root`([docs](https://www.jetbrains.com/help/clion/change-project-root-directory.html)) to set the project root to the root dir of this repo.
-
-### Debugging
-To set up debugging in CLion, there are two simple steps required. Firstly, in `CLion -> Settings / Preferences -> Build, Execution, Deploy -> CMake` you will need to add the desired builds (e.g. Debug, Release, RelDebug, etc). There's different ways to configure this, but the easiest is to leave all empty, except the `build path`, which needs to be set to `../build/{build type}`. Now on a clean repository you will first need to run `make {build type}` to initialize the CMake build directory. After running make, you will be able to (re)build from CLion by using the build target we just created. If you use the CLion editor, you can create a CLion CMake profiles matching the CMake variables that are described in the makefile, and then you don't need to invoke the Makefile.
-
-The second step is to configure the unittest runner as a run/debug configuration. To do this, go to `Run -> Edit Configurations` and click `+ -> Cmake Application`. The target and executable should be `unittest`. This will run all the DuckDB tests. To specify only running the extension specific tests, add `--test-dir ../../.. [sql]` to the `Program Arguments`. Note that it is recommended to use the `unittest` executable for testing/development within CLion. The actual DuckDB CLI currently does not reliably work as a run target in CLion.
+MIT Licensed
