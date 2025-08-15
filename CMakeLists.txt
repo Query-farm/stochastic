@@ -24,7 +24,9 @@ src/distribution_chi_squared.cpp
 src/distribution_exponential.cpp
 src/distribution_laplace.cpp
 src/distribution_lognormal.cpp
+src/distribution_logistic.cpp
 src/distribution_fisher_f.cpp
+src/distribution_extreme_value.cpp
 src/distribution_cauchy.cpp
 src/distribution_gamma.cpp
 src/distribution_geometric.cpp
@@ -32,6 +34,8 @@ src/distribution_students_t.cpp
 src/distribution_pareto.cpp
 src/distribution_uniform_real.cpp
 src/distribution_uniform_int.cpp
+src/distribution_weibull.cpp
+src/distribution_rayleigh.cpp
 src/rng_utils.cpp
 )
 
