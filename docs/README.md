@@ -28,27 +28,27 @@ Statistical distributions are mathematical functions that describe the probabili
 The extension supports a comprehensive set of probability distributions:
 
 ### Continuous Distributions
-- **Normal (Gaussian)** - `dist_normal_*` functions
 - **Beta** - `dist_beta_*` functions
-- **Gamma** - `dist_gamma_*` functions
-- **Exponential** - `dist_exponential_*` functions
-- **Uniform (Real)** - `dist_uniform_real_*` functions
-- **Log-normal** - `dist_lognormal_*` functions
-- **Student's t** - `dist_students_t_*` functions
-- **Chi-squared** - `dist_chi_squared_*` functions
-- **Fisher F** - `dist_fisher_f_*` functions
-- **Weibull** - `dist_weibull_*` functions
-- **Pareto** - `dist_pareto_*` functions
 - **Cauchy** - `dist_cauchy_*` functions
+- **Chi-squared** - `dist_chi_squared_*` functions
+- **Exponential** - `dist_exponential_*` functions
 - **Extreme Value** - `dist_extreme_value_*` functions
-- **Rayleigh** - `dist_rayleigh_*` functions
+- **Fisher F** - `dist_fisher_f_*` functions
+- **Gamma** - `dist_gamma_*` functions
+- **Log-normal** - `dist_lognormal_*` functions
 - **Logistic** - `dist_logistic_*` functions
+- **Normal (Gaussian)** - `dist_normal_*` functions
+- **Pareto** - `dist_pareto_*` functions
+- **Rayleigh** - `dist_rayleigh_*` functions
+- **Student's t** - `dist_students_t_*` functions
+- **Uniform (Real)** - `dist_uniform_real_*` functions
+- **Weibull** - `dist_weibull_*` functions
 
 ### Discrete Distributions
-- **Binomial** - `dist_binomial_*` functions
 - **Bernoulli** - `dist_bernoulli_*` functions
-- **Poisson** - `dist_poisson_*` functions
+- **Binomial** - `dist_binomial_*` functions
 - **Negative Binomial** - `dist_negative_binomial_*` functions
+- **Poisson** - `dist_poisson_*` functions
 - **Uniform (Integer)** - `dist_uniform_int_*` functions
 
 ## Function Categories
@@ -77,16 +77,16 @@ Each distribution provides the following function types:
 - `dist_{distribution}_chf(params..., x)` - Cumulative hazard function
 
 ### Distribution Properties
-- `dist_{distribution}_mean(params...)` - Expected value
-- `dist_{distribution}_variance(params...)` - Variance
-- `dist_{distribution}_stddev(params...)` - Standard deviation
-- `dist_{distribution}_mode(params...)` - Mode (most likely value)
-- `dist_{distribution}_median(params...)` - Median (50th percentile)
-- `dist_{distribution}_skewness(params...)` - Skewness
-- `dist_{distribution}_kurtosis(params...)` - Kurtosis
 - `dist_{distribution}_kurtosis_excess(params...)` - Excess kurtosis
+- `dist_{distribution}_kurtosis(params...)` - Kurtosis
+- `dist_{distribution}_mean(params...)` - Expected value
+- `dist_{distribution}_median(params...)` - Median (50th percentile)
+- `dist_{distribution}_mode(params...)` - Mode (most likely value)
 - `dist_{distribution}_range(params...)` - Support range
+- `dist_{distribution}_skewness(params...)` - Skewness
+- `dist_{distribution}_stddev(params...)` - Standard deviation
 - `dist_{distribution}_support(params...)` - Distribution support
+- `dist_{distribution}_variance(params...)` - Variance
 
 ## Usage Examples
 
