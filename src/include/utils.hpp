@@ -3,7 +3,6 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/scalar_function.hpp"
-#include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/vector_operations/generic_executor.hpp"
 #include <boost/math/distributions.hpp>
@@ -15,7 +14,7 @@
 namespace duckdb {
 
 template <typename DistributionType, typename FuncType>
-void RegisterFunction(DatabaseInstance &instance, const std::string &name, const FunctionStability &stability,
+void RegisterFunction(ExtensionLoader &loader, const std::string &name, const FunctionStability &stability,
                       const LogicalType &result_type, FuncType func, const std::string &description,
                       const std::string &example, vector<std::pair<string, LogicalType>> additional_params = {}) {
 
@@ -50,7 +49,7 @@ void RegisterFunction(DatabaseInstance &instance, const std::string &name, const
 	desc.parameter_names = final_names;
 
 	info.descriptions.push_back(desc);
-	ExtensionUtil::RegisterFunction(instance, info);
+	loader.RegisterFunction(info);
 }
 
 template <typename DistributionType, typename ReturnType>
