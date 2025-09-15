@@ -1,6 +1,7 @@
 # Stochastic Extension for DuckDB by [Query.Farm](https://query.farm)
 
-The `stochastic` extension adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
+The **`stochastic`** developed by **[Query.Farm](https://query.farm)** extension adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
+
 
 ## Installation
 
@@ -87,6 +88,128 @@ Each distribution provides the following function types:
 - `dist_{distribution}_stddev(params...)` - Standard deviation
 - `dist_{distribution}_support(params...)` - Distribution support
 - `dist_{distribution}_variance(params...)` - Variance
+
+## Distribution Parameters
+
+Below are the parameters for each supported distribution. Use these as arguments for sampling, PDF, CDF, and other functions.
+
+### Continuous Distributions
+
+#### Beta
+| Parameter | Description |
+|-----------|-------------|
+| `alpha`   | Shape parameter α (> 0) |
+| `beta`    | Shape parameter β (> 0) |
+
+#### Cauchy
+| Parameter | Description |
+|-----------|-------------|
+| `location`| Location parameter x₀ |
+| `scale`   | Scale parameter γ (> 0) |
+
+#### Chi-squared
+| Parameter | Description |
+|-----------|-------------|
+| `df`      | Degrees of freedom (> 0) |
+
+#### Exponential
+| Parameter | Description |
+|-----------|-------------|
+| `rate`    | Rate parameter λ (> 0) |
+
+#### Extreme Value
+| Parameter | Description |
+|-----------|-------------|
+| `location`| Location parameter |
+| `scale`   | Scale parameter (> 0) |
+
+#### Fisher F
+| Parameter | Description |
+|-----------|-------------|
+| `df1`     | Numerator degrees of freedom (> 0) |
+| `df2`     | Denominator degrees of freedom (> 0) |
+
+#### Gamma
+| Parameter | Description |
+|-----------|-------------|
+| `shape`   | Shape parameter k (> 0) |
+| `scale`   | Scale parameter θ (> 0) |
+
+#### Log-normal
+| Parameter | Description |
+|-----------|-------------|
+| `meanlog` | Mean of log values |
+| `sdlog`   | Standard deviation of log values (> 0) |
+
+#### Logistic
+| Parameter | Description |
+|-----------|-------------|
+| `location`| Location parameter |
+| `scale`   | Scale parameter (> 0) |
+
+#### Normal (Gaussian)
+| Parameter | Description |
+|-----------|-------------|
+| `mean`    | Mean μ |
+| `stddev`  | Standard deviation σ (> 0) |
+
+#### Pareto
+| Parameter | Description |
+|-----------|-------------|
+| `scale`   | Scale parameter xₘ (> 0) |
+| `shape`   | Shape parameter α (> 0) |
+
+#### Rayleigh
+| Parameter | Description |
+|-----------|-------------|
+| `scale`   | Scale parameter σ (> 0) |
+
+#### Student's t
+| Parameter | Description |
+|-----------|-------------|
+| `df`      | Degrees of freedom (> 0) |
+
+#### Uniform (Real)
+| Parameter | Description |
+|-----------|-------------|
+| `min`     | Lower bound |
+| `max`     | Upper bound (must be > min) |
+
+#### Weibull
+| Parameter | Description |
+|-----------|-------------|
+| `shape`   | Shape parameter k (> 0) |
+| `scale`   | Scale parameter λ (> 0) |
+
+### Discrete Distributions
+
+#### Bernoulli
+| Parameter | Description |
+|-----------|-------------|
+| `p`       | Probability of success (0 ≤ p ≤ 1) |
+
+#### Binomial
+| Parameter | Description |
+|-----------|-------------|
+| `n`       | Number of trials (integer ≥ 0) |
+| `p`       | Probability of success (0 ≤ p ≤ 1) |
+
+#### Negative Binomial
+| Parameter | Description |
+|-----------|-------------|
+| `r`       | Number of successes (integer > 0) |
+| `p`       | Probability of success (0 ≤ p ≤ 1) |
+
+#### Poisson
+| Parameter | Description |
+|-----------|-------------|
+| `rate`    | Rate parameter λ (> 0) |
+
+#### Uniform (Integer)
+| Parameter | Description |
+|-----------|-------------|
+| `min`     | Lower bound (integer) |
+| `max`     | Upper bound (integer, must be ≥ min) |
 
 ## Usage Examples
 
