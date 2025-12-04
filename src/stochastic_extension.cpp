@@ -10,6 +10,7 @@
 #include <thread>
 #include "utils.hpp"
 #include "query_farm_telemetry.hpp"
+#include "version.hpp"
 
 namespace duckdb {
 
@@ -58,7 +59,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	Load_uniform_real_distribution(loader);
 	Load_weibull_distribution(loader);
 
-	QueryFarmSendTelemetry(loader, "stochastic", "2025091501");
+	QueryFarmSendTelemetry(loader, "stochastic", STOCHASTIC_VERSION);
 }
 
 void StochasticExtension::Load(ExtensionLoader &loader) {
@@ -69,7 +70,7 @@ std::string StochasticExtension::Name() {
 }
 
 std::string StochasticExtension::Version() const {
-	return "2025091501";
+	return STOCHASTIC_VERSION;
 }
 
 } // namespace duckdb

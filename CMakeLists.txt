@@ -16,31 +16,14 @@ set(CMAKE_CXX_STANDARD 20)
 project(${TARGET_NAME})
 include_directories(src/include)
 
-set(EXTENSION_SOURCES src/stochastic_extension.cpp
-src/distribution_normal.cpp
-src/distribution_beta.cpp
-src/distribution_bernoulli.cpp
-src/distribution_chi_squared.cpp
-src/distribution_exponential.cpp
-src/distribution_laplace.cpp
-src/distribution_lognormal.cpp
-src/distribution_logistic.cpp
-src/distribution_fisher_f.cpp
-src/distribution_extreme_value.cpp
-src/distribution_cauchy.cpp
-src/distribution_gamma.cpp
-src/distribution_geometric.cpp
-src/distribution_students_t.cpp
-src/distribution_pareto.cpp
-src/distribution_uniform_real.cpp
-src/distribution_uniform_int.cpp
-src/distribution_weibull.cpp
-src/distribution_rayleigh.cpp
-src/distribution_binomial.cpp
-src/distribution_negative_binomial.cpp
-src/distribution_poisson.cpp
-src/rng_utils.cpp
-src/query_farm_telemetry.cpp
+# Auto-discover distribution source files
+file(GLOB DISTRIBUTION_SOURCES "src/distribution_*.cpp")
+
+set(EXTENSION_SOURCES
+    src/stochastic_extension.cpp
+    src/rng_utils.cpp
+    src/query_farm_telemetry.cpp
+    ${DISTRIBUTION_SOURCES}
 )
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
