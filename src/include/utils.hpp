@@ -325,7 +325,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -371,7 +371,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -474,7 +474,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.AllValid()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -512,7 +512,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.AllValid()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
