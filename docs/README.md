@@ -36,6 +36,7 @@ The extension supports a comprehensive set of probability distributions:
 - **Extreme Value** - `dist_extreme_value_*` functions
 - **Fisher F** - `dist_fisher_f_*` functions
 - **Gamma** - `dist_gamma_*` functions
+- **Laplace** - `dist_laplace_*` functions
 - **Log-normal** - `dist_lognormal_*` functions
 - **Logistic** - `dist_logistic_*` functions
 - **Normal (Gaussian)** - `dist_normal_*` functions
@@ -48,6 +49,7 @@ The extension supports a comprehensive set of probability distributions:
 ### Discrete Distributions
 - **Bernoulli** - `dist_bernoulli_*` functions
 - **Binomial** - `dist_binomial_*` functions
+- **Geometric** - `dist_geometric_*` functions
 - **Negative Binomial** - `dist_negative_binomial_*` functions
 - **Poisson** - `dist_poisson_*` functions
 - **Uniform (Integer)** - `dist_uniform_int_*` functions
@@ -135,6 +137,12 @@ Below are the parameters for each supported distribution. Use these as arguments
 | `shape`   | Shape parameter k (> 0) |
 | `scale`   | Scale parameter θ (> 0) |
 
+#### Laplace
+| Parameter | Description |
+|-----------|-------------|
+| `location`| Location parameter μ |
+| `scale`   | Scale parameter b (> 0) |
+
 #### Log-normal
 | Parameter | Description |
 |-----------|-------------|
@@ -192,6 +200,11 @@ Below are the parameters for each supported distribution. Use these as arguments
 | Parameter | Description |
 |-----------|-------------|
 | `n`       | Number of trials (integer ≥ 0) |
+| `p`       | Probability of success (0 ≤ p ≤ 1) |
+
+#### Geometric
+| Parameter | Description |
+|-----------|-------------|
 | `p`       | Probability of success (0 ≤ p ≤ 1) |
 
 #### Negative Binomial
