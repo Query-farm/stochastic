@@ -1,6 +1,6 @@
 # Stochastic Extension for DuckDB by [Query.Farm](https://query.farm)
 
-The **`stochastic`** developed by **[Query.Farm](https://query.farm)** extension adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
+The **`stochastic`** extension, developed by **[Query.Farm](https://query.farm)**, adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
 
 
 ## Installation
