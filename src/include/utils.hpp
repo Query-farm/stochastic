@@ -5,6 +5,7 @@
 #include "duckdb/function/scalar_function.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/vector_operations/generic_executor.hpp"
+#include "duckdb/common/vector/array_vector.hpp"
 #include <boost/math/distributions.hpp>
 #include <random>
 #include "rng_adapter.hpp"
@@ -332,7 +333,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.CannotHaveNull() || !dist_param2_data.validity.CannotHaveNull()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -378,7 +379,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.CannotHaveNull() || !dist_param2_data.validity.CannotHaveNull()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -481,7 +482,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.CannotHaveNull()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
@@ -519,7 +520,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto &result_data_children = ArrayVector::GetEntry(result);
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
-		if (!dist_param1_data.validity.AllValid()) {
+		if (!dist_param1_data.validity.CannotHaveNull()) {
 			auto result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
