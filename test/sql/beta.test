@@ -1,0 +1,162 @@
+# name: test/sql/beta.test
+# description: test beta distribution
+# group: [sql]
+
+require stochastic
+
+# Test beta PDF
+query R
+SELECT round(dist_beta_pdf(2.0, 5.0, 0.3), 6);
+----
+2.160900
+
+query R
+SELECT round(dist_beta_pdf(2.0, 5.0, 0.5), 6);
+----
+0.937500
+
+query R
+SELECT round(dist_beta_pdf(2.0, 5.0, 0.1), 6);
+----
+1.968300
+
+# Test beta log PDF
+query R
+SELECT round(dist_beta_log_pdf(2.0, 5.0, 0.3), 6);
+----
+0.770525
+
+# Test beta CDF
+query R
+SELECT round(dist_beta_cdf(2.0, 5.0, 0.3), 6);
+----
+0.579825
+
+query R
+SELECT round(dist_beta_cdf(2.0, 5.0, 0.5), 6);
+----
+0.890625
+
+query R
+SELECT round(dist_beta_cdf(2.0, 5.0, 0.1), 6);
+----
+0.114265
+
+# Test beta CDF complement
+query R
+SELECT round(dist_beta_cdf_complement(2.0, 5.0, 0.3), 6);
+----
+0.420175
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_beta_cdf(2.0, 5.0, 0.5) + dist_beta_cdf_complement(2.0, 5.0, 0.5), 1);
+----
+1.0
+
+# Test beta log CDF
+query R
+SELECT round(dist_beta_log_cdf(2.0, 5.0, 0.5), 6);
+----
+-0.115832
+
+# Test beta log CDF complement
+query R
+SELECT round(dist_beta_log_cdf_complement(2.0, 5.0, 0.5), 6);
+----
+-2.212973
+
+# Test beta quantile (inverse CDF)
+query R
+SELECT round(dist_beta_quantile(2.0, 5.0, 0.5), 6);
+----
+0.264450
+
+query R
+SELECT round(dist_beta_quantile(2.0, 5.0, 0.95), 6);
+----
+0.581803
+
+# Test beta quantile complement
+query R
+SELECT round(dist_beta_quantile_complement(2.0, 5.0, 0.05), 6);
+----
+0.581803
+
+# Test beta hazard function
+query R
+SELECT round(dist_beta_hazard(2.0, 5.0, 0.3), 6);
+----
+5.142857
+
+# Test beta cumulative hazard function
+query R
+SELECT round(dist_beta_chf(2.0, 5.0, 0.3), 6);
+----
+0.867084
+
+# Test beta mean
+query R
+SELECT round(dist_beta_mean(2.0, 5.0), 6);
+----
+0.285714
+
+# Test beta stddev
+query R
+SELECT round(dist_beta_stddev(2.0, 5.0), 6);
+----
+0.159719
+
+# Test beta variance
+query R
+SELECT round(dist_beta_variance(2.0, 5.0), 6);
+----
+0.025510
+
+# Test beta mode
+query R
+SELECT round(dist_beta_mode(2.0, 5.0), 6);
+----
+0.200000
+
+# Test beta median
+query R
+SELECT round(dist_beta_median(2.0, 5.0), 6);
+----
+0.264450
+
+# Test beta skewness
+query R
+SELECT round(dist_beta_skewness(2.0, 5.0), 6);
+----
+0.596285
+
+# Test beta kurtosis
+query R
+SELECT round(dist_beta_kurtosis(2.0, 5.0), 6);
+----
+2.880000
+
+# Test beta kurtosis_excess
+query R
+SELECT round(dist_beta_kurtosis_excess(2.0, 5.0), 6);
+----
+-0.120000
+
+# Test beta range executes without error
+query I
+SELECT dist_beta_range(2.0, 5.0) IS NOT NULL;
+----
+true
+
+# Test beta support executes without error
+query I
+SELECT dist_beta_support(2.0, 5.0) IS NOT NULL;
+----
+true
+
+# Test beta sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_beta_sample(2.0, 5.0)) > 1 FROM generate_series(1, 100);
+----
+true

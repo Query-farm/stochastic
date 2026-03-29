@@ -1,0 +1,162 @@
+# name: test/sql/poisson.test
+# description: test poisson distribution
+# group: [sql]
+
+require stochastic
+
+# Test poisson PDF
+query R
+SELECT round(dist_poisson_pdf(5.0, 5), 6);
+----
+0.175467
+
+query R
+SELECT round(dist_poisson_pdf(5.0, 3), 6);
+----
+0.140374
+
+query R
+SELECT round(dist_poisson_pdf(5.0, 7), 6);
+----
+0.104445
+
+# Test poisson log PDF
+query R
+SELECT round(dist_poisson_log_pdf(5.0, 5), 6);
+----
+-1.740302
+
+# Test poisson CDF
+query R
+SELECT round(dist_poisson_cdf(5.0, 5), 6);
+----
+0.615961
+
+query R
+SELECT round(dist_poisson_cdf(5.0, 3), 6);
+----
+0.265026
+
+query R
+SELECT round(dist_poisson_cdf(5.0, 7), 6);
+----
+0.866628
+
+# Test poisson CDF complement
+query R
+SELECT round(dist_poisson_cdf_complement(5.0, 5), 6);
+----
+0.384039
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_poisson_cdf(5.0, 3) + dist_poisson_cdf_complement(5.0, 3), 1);
+----
+1.0
+
+# Test poisson log CDF
+query R
+SELECT round(dist_poisson_log_cdf(5.0, 3), 6);
+----
+-1.327928
+
+# Test poisson log CDF complement
+query R
+SELECT round(dist_poisson_log_cdf_complement(5.0, 3), 6);
+----
+-0.307920
+
+# Test poisson quantile (inverse CDF)
+query R
+SELECT round(dist_poisson_quantile(5.0, 0.5), 6);
+----
+5.000000
+
+query R
+SELECT round(dist_poisson_quantile(5.0, 0.95), 6);
+----
+9.000000
+
+# Test poisson quantile complement
+query R
+SELECT round(dist_poisson_quantile_complement(5.0, 0.05), 6);
+----
+9.000000
+
+# Test poisson hazard function
+query R
+SELECT round(dist_poisson_hazard(5.0, 5), 6);
+----
+0.456899
+
+# Test poisson cumulative hazard function
+query R
+SELECT round(dist_poisson_chf(5.0, 5), 6);
+----
+0.957010
+
+# Test poisson mean
+query R
+SELECT round(dist_poisson_mean(5.0), 6);
+----
+5.000000
+
+# Test poisson stddev
+query R
+SELECT round(dist_poisson_stddev(5.0), 6);
+----
+2.236068
+
+# Test poisson variance
+query R
+SELECT round(dist_poisson_variance(5.0), 6);
+----
+5.000000
+
+# Test poisson mode
+query R
+SELECT round(dist_poisson_mode(5.0), 6);
+----
+5.000000
+
+# Test poisson median
+query R
+SELECT round(dist_poisson_median(5.0), 6);
+----
+5.000000
+
+# Test poisson skewness
+query R
+SELECT round(dist_poisson_skewness(5.0), 6);
+----
+0.447214
+
+# Test poisson kurtosis
+query R
+SELECT round(dist_poisson_kurtosis(5.0), 6);
+----
+3.200000
+
+# Test poisson kurtosis_excess
+query R
+SELECT round(dist_poisson_kurtosis_excess(5.0), 6);
+----
+0.200000
+
+# Test poisson range executes without error
+query I
+SELECT dist_poisson_range(5.0) IS NOT NULL;
+----
+true
+
+# Test poisson support executes without error
+query I
+SELECT dist_poisson_support(5.0) IS NOT NULL;
+----
+true
+
+# Test poisson sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_poisson_sample(5.0)) > 1 FROM generate_series(1, 100);
+----
+true

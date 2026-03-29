@@ -1,0 +1,126 @@
+# name: test/sql/cauchy.test
+# description: test cauchy distribution
+# group: [sql]
+
+require stochastic
+
+# Test cauchy PDF
+query R
+SELECT round(dist_cauchy_pdf(0.0, 1.0, 0.0), 6);
+----
+0.318310
+
+query R
+SELECT round(dist_cauchy_pdf(0.0, 1.0, 1.0), 6);
+----
+0.159155
+
+query R
+SELECT round(dist_cauchy_pdf(0.0, 1.0, -1.0), 6);
+----
+0.159155
+
+# Test cauchy log PDF
+query R
+SELECT round(dist_cauchy_log_pdf(0.0, 1.0, 0.0), 6);
+----
+-1.144730
+
+# Test cauchy CDF
+query R
+SELECT round(dist_cauchy_cdf(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_cauchy_cdf(0.0, 1.0, 1.0), 6);
+----
+0.750000
+
+query R
+SELECT round(dist_cauchy_cdf(0.0, 1.0, -1.0), 6);
+----
+0.250000
+
+# Test cauchy CDF complement
+query R
+SELECT round(dist_cauchy_cdf_complement(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_cauchy_cdf(0.0, 1.0, 1.0) + dist_cauchy_cdf_complement(0.0, 1.0, 1.0), 1);
+----
+1.0
+
+# Test cauchy log CDF
+query R
+SELECT round(dist_cauchy_log_cdf(0.0, 1.0, 1.0), 6);
+----
+-0.287682
+
+# Test cauchy log CDF complement
+query R
+SELECT round(dist_cauchy_log_cdf_complement(0.0, 1.0, 1.0), 6);
+----
+-1.386294
+
+# Test cauchy quantile (inverse CDF)
+query R
+SELECT round(dist_cauchy_quantile(0.0, 1.0, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_cauchy_quantile(0.0, 1.0, 0.95), 6);
+----
+6.313752
+
+# Test cauchy quantile complement
+query R
+SELECT round(dist_cauchy_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+6.313752
+
+# Test cauchy hazard function
+query R
+SELECT round(dist_cauchy_hazard(0.0, 1.0, 0.0), 6);
+----
+0.636620
+
+# Test cauchy cumulative hazard function
+query R
+SELECT round(dist_cauchy_chf(0.0, 1.0, 0.0), 6);
+----
+0.693147
+
+# Test cauchy mode
+query R
+SELECT round(dist_cauchy_mode(0.0, 1.0), 6);
+----
+0.000000
+
+# Test cauchy median
+query R
+SELECT round(dist_cauchy_median(0.0, 1.0), 6);
+----
+0.000000
+
+# Test cauchy range executes without error
+query I
+SELECT dist_cauchy_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test cauchy support executes without error
+query I
+SELECT dist_cauchy_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test cauchy sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_cauchy_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

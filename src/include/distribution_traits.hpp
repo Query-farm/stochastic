@@ -1,7 +1,8 @@
 #pragma once
 #include "duckdb.hpp"
-#include <boost/random.hpp>
+#include <random>
 #include "callable_traits.hpp"
+#include "custom_random.hpp"
 
 namespace duckdb {
 

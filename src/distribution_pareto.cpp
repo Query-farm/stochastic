@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -8,7 +8,7 @@ namespace duckdb {
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       pareto_distribution
 #define DISTRIBUTION            boost::math::DISTRIBUTION_NAME<double>
-#define SAMPLE_DISTRIBUTION     boost::random::DISTRIBUTION_NAME<double>
+#define SAMPLE_DISTRIBUTION     custom_random::pareto_distribution<double>
 #define REGISTER                RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>
@@ -41,7 +41,7 @@ struct distribution_traits_base {
 	struct distribution_traits<DIST> : public distribution_traits_base<DIST> {};
 
 DEFINE_DIST_TRAITS(DISTRIBUTION);
-// DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
+DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
 
 #define CONCAT(a, b)            a##b
 #define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)
@@ -65,13 +65,13 @@ LOAD_DISTRIBUTION_FN {
 		};
 	};
 
-	// REGISTER(
-	//     loader, "sample", FunctionStability::VOLATILE, LogicalType::DOUBLE,
-	//     [](DataChunk &args, ExpressionState &state, Vector &result) {
-	// 	    DistributionSampleBinary<SAMPLE_DISTRIBUTION, double>(args, state, result);
-	//     },
-	//     "Generates random samples from the " + DISTRIBUTION_TEXT + " with specified parameters.",
-	//     "sample(0.0, 1.0)");
+	REGISTER(
+	    loader, "sample", FunctionStability::VOLATILE, LogicalType::DOUBLE,
+	    [](DataChunk &args, ExpressionState &state, Vector &result) {
+		    DistributionSampleBinary<SAMPLE_DISTRIBUTION, double>(args, state, result);
+	    },
+	    "Generates random samples from the " + DISTRIBUTION_TEXT + " with specified parameters.",
+	    "sample(3.0, 1.0)");
 
 	REGISTER(loader, "pdf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
 	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return boost::math::pdf(dist, x); }),

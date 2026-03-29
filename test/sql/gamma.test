@@ -1,0 +1,162 @@
+# name: test/sql/gamma.test
+# description: test gamma distribution
+# group: [sql]
+
+require stochastic
+
+# Test gamma PDF
+query R
+SELECT round(dist_gamma_pdf(2.0, 1.0, 1.0), 6);
+----
+0.367879
+
+query R
+SELECT round(dist_gamma_pdf(2.0, 1.0, 2.0), 6);
+----
+0.270671
+
+query R
+SELECT round(dist_gamma_pdf(2.0, 1.0, 0.5), 6);
+----
+0.303265
+
+# Test gamma log PDF
+query R
+SELECT round(dist_gamma_log_pdf(2.0, 1.0, 1.0), 6);
+----
+-1.000000
+
+# Test gamma CDF
+query R
+SELECT round(dist_gamma_cdf(2.0, 1.0, 1.0), 6);
+----
+0.264241
+
+query R
+SELECT round(dist_gamma_cdf(2.0, 1.0, 2.0), 6);
+----
+0.593994
+
+query R
+SELECT round(dist_gamma_cdf(2.0, 1.0, 0.5), 6);
+----
+0.090204
+
+# Test gamma CDF complement
+query R
+SELECT round(dist_gamma_cdf_complement(2.0, 1.0, 1.0), 6);
+----
+0.735759
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_gamma_cdf(2.0, 1.0, 2.0) + dist_gamma_cdf_complement(2.0, 1.0, 2.0), 1);
+----
+1.0
+
+# Test gamma log CDF
+query R
+SELECT round(dist_gamma_log_cdf(2.0, 1.0, 2.0), 6);
+----
+-0.520886
+
+# Test gamma log CDF complement
+query R
+SELECT round(dist_gamma_log_cdf_complement(2.0, 1.0, 2.0), 6);
+----
+-0.901388
+
+# Test gamma quantile (inverse CDF)
+query R
+SELECT round(dist_gamma_quantile(2.0, 1.0, 0.5), 6);
+----
+1.678347
+
+query R
+SELECT round(dist_gamma_quantile(2.0, 1.0, 0.95), 6);
+----
+4.743865
+
+# Test gamma quantile complement
+query R
+SELECT round(dist_gamma_quantile_complement(2.0, 1.0, 0.05), 6);
+----
+4.743865
+
+# Test gamma hazard function
+query R
+SELECT round(dist_gamma_hazard(2.0, 1.0, 1.0), 6);
+----
+0.500000
+
+# Test gamma cumulative hazard function
+query R
+SELECT round(dist_gamma_chf(2.0, 1.0, 1.0), 6);
+----
+0.306853
+
+# Test gamma mean
+query R
+SELECT round(dist_gamma_mean(2.0, 1.0), 6);
+----
+2.000000
+
+# Test gamma stddev
+query R
+SELECT round(dist_gamma_stddev(2.0, 1.0), 6);
+----
+1.414214
+
+# Test gamma variance
+query R
+SELECT round(dist_gamma_variance(2.0, 1.0), 6);
+----
+2.000000
+
+# Test gamma mode
+query R
+SELECT round(dist_gamma_mode(2.0, 1.0), 6);
+----
+1.000000
+
+# Test gamma median
+query R
+SELECT round(dist_gamma_median(2.0, 1.0), 6);
+----
+1.678347
+
+# Test gamma skewness
+query R
+SELECT round(dist_gamma_skewness(2.0, 1.0), 6);
+----
+1.414214
+
+# Test gamma kurtosis
+query R
+SELECT round(dist_gamma_kurtosis(2.0, 1.0), 6);
+----
+6.000000
+
+# Test gamma kurtosis_excess
+query R
+SELECT round(dist_gamma_kurtosis_excess(2.0, 1.0), 6);
+----
+3.000000
+
+# Test gamma range executes without error
+query I
+SELECT dist_gamma_range(2.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test gamma support executes without error
+query I
+SELECT dist_gamma_support(2.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test gamma sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_gamma_sample(2.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -9,7 +9,7 @@ namespace duckdb {
 #define DISTRIBUTION_NAME       bernoulli_distribution
 
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
-#define SAMPLE_DISTRIBUTION boost::random::DISTRIBUTION_NAME<double>
+#define SAMPLE_DISTRIBUTION std::bernoulli_distribution
 #define REGISTER            RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>

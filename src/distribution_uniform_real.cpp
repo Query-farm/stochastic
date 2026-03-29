@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -8,7 +8,7 @@ namespace duckdb {
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       uniform_real_distribution
 #define DISTRIBUTION            boost::math::uniform_distribution<double>
-#define SAMPLE_DISTRIBUTION     boost::random::uniform_real_distribution<double>
+#define SAMPLE_DISTRIBUTION     std::uniform_real_distribution<double>
 #define REGISTER                RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>

@@ -1,0 +1,162 @@
+# name: test/sql/rayleigh.test
+# description: test rayleigh distribution
+# group: [sql]
+
+require stochastic
+
+# Test rayleigh PDF
+query R
+SELECT round(dist_rayleigh_pdf(1.0, 0.5), 6);
+----
+0.441248
+
+query R
+SELECT round(dist_rayleigh_pdf(1.0, 1.0), 6);
+----
+0.606531
+
+query R
+SELECT round(dist_rayleigh_pdf(1.0, 2.0), 6);
+----
+0.270671
+
+# Test rayleigh log PDF
+query R
+SELECT round(dist_rayleigh_log_pdf(1.0, 0.5), 6);
+----
+-0.818147
+
+# Test rayleigh CDF
+query R
+SELECT round(dist_rayleigh_cdf(1.0, 0.5), 6);
+----
+0.117503
+
+query R
+SELECT round(dist_rayleigh_cdf(1.0, 1.0), 6);
+----
+0.393469
+
+query R
+SELECT round(dist_rayleigh_cdf(1.0, 2.0), 6);
+----
+0.864665
+
+# Test rayleigh CDF complement
+query R
+SELECT round(dist_rayleigh_cdf_complement(1.0, 0.5), 6);
+----
+0.882497
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_rayleigh_cdf(1.0, 1.0) + dist_rayleigh_cdf_complement(1.0, 1.0), 1);
+----
+1.0
+
+# Test rayleigh log CDF
+query R
+SELECT round(dist_rayleigh_log_cdf(1.0, 1.0), 6);
+----
+-0.932752
+
+# Test rayleigh log CDF complement
+query R
+SELECT round(dist_rayleigh_log_cdf_complement(1.0, 1.0), 6);
+----
+-0.500000
+
+# Test rayleigh quantile (inverse CDF)
+query R
+SELECT round(dist_rayleigh_quantile(1.0, 0.5), 6);
+----
+1.177410
+
+query R
+SELECT round(dist_rayleigh_quantile(1.0, 0.95), 6);
+----
+2.447747
+
+# Test rayleigh quantile complement
+query R
+SELECT round(dist_rayleigh_quantile_complement(1.0, 0.05), 6);
+----
+2.447747
+
+# Test rayleigh hazard function
+query R
+SELECT round(dist_rayleigh_hazard(1.0, 0.5), 6);
+----
+0.500000
+
+# Test rayleigh cumulative hazard function
+query R
+SELECT round(dist_rayleigh_chf(1.0, 0.5), 6);
+----
+0.125000
+
+# Test rayleigh mean
+query R
+SELECT round(dist_rayleigh_mean(1.0), 6);
+----
+1.253314
+
+# Test rayleigh stddev
+query R
+SELECT round(dist_rayleigh_stddev(1.0), 6);
+----
+0.655136
+
+# Test rayleigh variance
+query R
+SELECT round(dist_rayleigh_variance(1.0), 6);
+----
+0.429204
+
+# Test rayleigh mode
+query R
+SELECT round(dist_rayleigh_mode(1.0), 6);
+----
+1.000000
+
+# Test rayleigh median
+query R
+SELECT round(dist_rayleigh_median(1.0), 6);
+----
+1.177410
+
+# Test rayleigh skewness
+query R
+SELECT round(dist_rayleigh_skewness(1.0), 6);
+----
+0.631111
+
+# Test rayleigh kurtosis
+query R
+SELECT round(dist_rayleigh_kurtosis(1.0), 6);
+----
+3.245089
+
+# Test rayleigh kurtosis_excess
+query R
+SELECT round(dist_rayleigh_kurtosis_excess(1.0), 6);
+----
+0.245089
+
+# Test rayleigh range executes without error
+query I
+SELECT dist_rayleigh_range(1.0) IS NOT NULL;
+----
+true
+
+# Test rayleigh support executes without error
+query I
+SELECT dist_rayleigh_support(1.0) IS NOT NULL;
+----
+true
+
+# Test rayleigh sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_rayleigh_sample(1.0)) > 1 FROM generate_series(1, 100);
+----
+true

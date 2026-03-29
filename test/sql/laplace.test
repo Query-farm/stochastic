@@ -1,0 +1,162 @@
+# name: test/sql/laplace.test
+# description: test laplace distribution
+# group: [sql]
+
+require stochastic
+
+# Test laplace PDF
+query R
+SELECT round(dist_laplace_pdf(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_laplace_pdf(0.0, 1.0, 1.0), 6);
+----
+0.183940
+
+query R
+SELECT round(dist_laplace_pdf(0.0, 1.0, -1.0), 6);
+----
+0.183940
+
+# Test laplace log PDF
+query R
+SELECT round(dist_laplace_log_pdf(0.0, 1.0, 0.0), 6);
+----
+-0.693147
+
+# Test laplace CDF
+query R
+SELECT round(dist_laplace_cdf(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_laplace_cdf(0.0, 1.0, 1.0), 6);
+----
+0.816060
+
+query R
+SELECT round(dist_laplace_cdf(0.0, 1.0, -1.0), 6);
+----
+0.183940
+
+# Test laplace CDF complement
+query R
+SELECT round(dist_laplace_cdf_complement(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_laplace_cdf(0.0, 1.0, 1.0) + dist_laplace_cdf_complement(0.0, 1.0, 1.0), 1);
+----
+1.0
+
+# Test laplace log CDF
+query R
+SELECT round(dist_laplace_log_cdf(0.0, 1.0, 1.0), 6);
+----
+-0.203267
+
+# Test laplace log CDF complement
+query R
+SELECT round(dist_laplace_log_cdf_complement(0.0, 1.0, 1.0), 6);
+----
+-1.693147
+
+# Test laplace quantile (inverse CDF)
+query R
+SELECT round(dist_laplace_quantile(0.0, 1.0, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_laplace_quantile(0.0, 1.0, 0.95), 6);
+----
+2.302585
+
+# Test laplace quantile complement
+query R
+SELECT round(dist_laplace_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+2.302585
+
+# Test laplace hazard function
+query R
+SELECT round(dist_laplace_hazard(0.0, 1.0, 0.0), 6);
+----
+1.000000
+
+# Test laplace cumulative hazard function
+query R
+SELECT round(dist_laplace_chf(0.0, 1.0, 0.0), 6);
+----
+0.693147
+
+# Test laplace mean
+query R
+SELECT round(dist_laplace_mean(0.0, 1.0), 6);
+----
+0.000000
+
+# Test laplace stddev
+query R
+SELECT round(dist_laplace_stddev(0.0, 1.0), 6);
+----
+1.414214
+
+# Test laplace variance
+query R
+SELECT round(dist_laplace_variance(0.0, 1.0), 6);
+----
+2.000000
+
+# Test laplace mode
+query R
+SELECT round(dist_laplace_mode(0.0, 1.0), 6);
+----
+0.000000
+
+# Test laplace median
+query R
+SELECT round(dist_laplace_median(0.0, 1.0), 6);
+----
+0.000000
+
+# Test laplace skewness
+query R
+SELECT round(dist_laplace_skewness(0.0, 1.0), 6);
+----
+0.000000
+
+# Test laplace kurtosis
+query R
+SELECT round(dist_laplace_kurtosis(0.0, 1.0), 6);
+----
+6.000000
+
+# Test laplace kurtosis_excess
+query R
+SELECT round(dist_laplace_kurtosis_excess(0.0, 1.0), 6);
+----
+3.000000
+
+# Test laplace range executes without error
+query I
+SELECT dist_laplace_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test laplace support executes without error
+query I
+SELECT dist_laplace_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test laplace sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_laplace_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

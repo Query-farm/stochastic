@@ -1,0 +1,150 @@
+# name: test/sql/negative_binomial.test
+# description: test negative_binomial distribution
+# group: [sql]
+
+require stochastic
+
+# Test negative_binomial PDF
+query R
+SELECT round(dist_negative_binomial_pdf(10::BIGINT, 0.5, 5), 6);
+----
+0.061096
+
+query R
+SELECT round(dist_negative_binomial_pdf(10::BIGINT, 0.5, 10), 6);
+----
+0.088099
+
+query R
+SELECT round(dist_negative_binomial_pdf(10::BIGINT, 0.5, 3), 6);
+----
+0.026855
+
+# Test negative_binomial log PDF
+query R
+SELECT round(dist_negative_binomial_log_pdf(10::BIGINT, 0.5, 5), 6);
+----
+-2.795306
+
+# Test negative_binomial CDF
+query R
+SELECT round(dist_negative_binomial_cdf(10::BIGINT, 0.5, 5), 6);
+----
+0.150879
+
+query R
+SELECT round(dist_negative_binomial_cdf(10::BIGINT, 0.5, 10), 6);
+----
+0.588099
+
+query R
+SELECT round(dist_negative_binomial_cdf(10::BIGINT, 0.5, 3), 6);
+----
+0.046143
+
+# Test negative_binomial CDF complement
+query R
+SELECT round(dist_negative_binomial_cdf_complement(10::BIGINT, 0.5, 5), 6);
+----
+0.849121
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_negative_binomial_cdf(10::BIGINT, 0.5, 10) + dist_negative_binomial_cdf_complement(10::BIGINT, 0.5, 10), 1);
+----
+1.0
+
+# Test negative_binomial log CDF
+query R
+SELECT round(dist_negative_binomial_log_cdf(10::BIGINT, 0.5, 10), 6);
+----
+-0.530861
+
+# Test negative_binomial log CDF complement
+query R
+SELECT round(dist_negative_binomial_log_cdf_complement(10::BIGINT, 0.5, 10), 6);
+----
+-0.886971
+
+# Test negative_binomial quantile (inverse CDF)
+query I
+SELECT dist_negative_binomial_quantile(10::BIGINT, 0.5, 0.5);
+----
+9
+
+query I
+SELECT dist_negative_binomial_quantile(10::BIGINT, 0.5, 0.95);
+----
+18
+
+# Test negative_binomial quantile complement
+query I
+SELECT dist_negative_binomial_quantile_complement(10::BIGINT, 0.5, 0.05);
+----
+18
+
+# Test negative_binomial hazard function
+query R
+SELECT round(dist_negative_binomial_hazard(10::BIGINT, 0.5, 5), 6);
+----
+0.071952
+
+# Test negative_binomial cumulative hazard function
+query R
+SELECT round(dist_negative_binomial_chf(10::BIGINT, 0.5, 5), 6);
+----
+0.163553
+
+# Test negative_binomial variance
+query R
+SELECT round(dist_negative_binomial_variance(10::BIGINT, 0.5), 6);
+----
+20.000000
+
+# Test negative_binomial mode
+query R
+SELECT round(dist_negative_binomial_mode(10::BIGINT, 0.5), 6);
+----
+9.000000
+
+# Test negative_binomial median
+query R
+SELECT round(dist_negative_binomial_median(10::BIGINT, 0.5), 6);
+----
+9.000000
+
+# Test negative_binomial skewness
+query R
+SELECT round(dist_negative_binomial_skewness(10::BIGINT, 0.5), 6);
+----
+0.670820
+
+# Test negative_binomial kurtosis
+query R
+SELECT round(dist_negative_binomial_kurtosis(10::BIGINT, 0.5), 6);
+----
+3.650000
+
+# Test negative_binomial kurtosis_excess
+query R
+SELECT round(dist_negative_binomial_kurtosis_excess(10::BIGINT, 0.5), 6);
+----
+0.650000
+
+# Test negative_binomial range executes without error
+query I
+SELECT dist_negative_binomial_range(10::BIGINT, 0.5) IS NOT NULL;
+----
+true
+
+# Test negative_binomial support executes without error
+query I
+SELECT dist_negative_binomial_support(10::BIGINT, 0.5) IS NOT NULL;
+----
+true
+
+# Test negative_binomial sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_negative_binomial_sample(10::BIGINT, 0.5)) > 1 FROM generate_series(1, 100);
+----
+true

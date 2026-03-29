@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -8,7 +8,7 @@ namespace duckdb {
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       binomial_distribution
 #define DISTRIBUTION            boost::math::DISTRIBUTION_NAME<double>
-#define SAMPLE_DISTRIBUTION     boost::random::DISTRIBUTION_NAME<int64_t>
+#define SAMPLE_DISTRIBUTION     std::DISTRIBUTION_NAME<int64_t>
 #define REGISTER                RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>
@@ -123,15 +123,15 @@ LOAD_DISTRIBUTION_FN {
 	// === QUANTILE FUNCTIONS ===
 	REGISTER(
 	    loader, "quantile", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	    make_unary([](const auto &dist, auto p) -> DISTRIBUTION::value_type { return boost::math::quantile(dist, p); }),
+	    make_unary([](const auto &dist, auto p) -> int64_t { return static_cast<int64_t>(boost::math::quantile(dist, p)); }),
 	    "Computes the quantile function (inverse CDF) of the " + DISTRIBUTION_TEXT +
 	        ". Returns the value x "
 	        "such that P(X ≤ x) = p, where p is the cumulative probability.",
 	    "quantile(10, 0.5, 0.95)", param_names_quantile);
 
 	REGISTER(loader, "quantile_complement", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_unary([](const auto &dist, auto p) -> DISTRIBUTION::value_type {
-		         return boost::math::quantile(boost::math::complement(dist, p));
+	         make_unary([](const auto &dist, auto p) -> int64_t {
+		         return static_cast<int64_t>(boost::math::quantile(boost::math::complement(dist, p)));
 	         }),
 	         "Computes the complementary quantile function of the " + DISTRIBUTION_TEXT +
 	             ". Returns the value x "

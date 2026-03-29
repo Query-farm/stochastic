@@ -1,0 +1,150 @@
+# name: test/sql/logistic.test
+# description: test logistic distribution
+# group: [sql]
+
+require stochastic
+
+# Test logistic PDF
+query R
+SELECT round(dist_logistic_pdf(0.0, 1.0, 0.0), 6);
+----
+0.250000
+
+query R
+SELECT round(dist_logistic_pdf(0.0, 1.0, 1.0), 6);
+----
+0.196612
+
+query R
+SELECT round(dist_logistic_pdf(0.0, 1.0, -1.0), 6);
+----
+0.196612
+
+# Test logistic log PDF
+query R
+SELECT round(dist_logistic_log_pdf(0.0, 1.0, 0.0), 6);
+----
+-1.386294
+
+# Test logistic CDF
+query R
+SELECT round(dist_logistic_cdf(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_logistic_cdf(0.0, 1.0, 1.0), 6);
+----
+0.731059
+
+query R
+SELECT round(dist_logistic_cdf(0.0, 1.0, -1.0), 6);
+----
+0.268941
+
+# Test logistic CDF complement
+query R
+SELECT round(dist_logistic_cdf_complement(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_logistic_cdf(0.0, 1.0, 1.0) + dist_logistic_cdf_complement(0.0, 1.0, 1.0), 1);
+----
+1.0
+
+# Test logistic log CDF
+query R
+SELECT round(dist_logistic_log_cdf(0.0, 1.0, 1.0), 6);
+----
+-0.313262
+
+# Test logistic log CDF complement
+query R
+SELECT round(dist_logistic_log_cdf_complement(0.0, 1.0, 1.0), 6);
+----
+-1.313262
+
+# Test logistic quantile (inverse CDF)
+query R
+SELECT round(dist_logistic_quantile(0.0, 1.0, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_logistic_quantile(0.0, 1.0, 0.95), 6);
+----
+2.944439
+
+# Test logistic quantile complement
+query R
+SELECT round(dist_logistic_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+2.944439
+
+# Test logistic hazard function
+query R
+SELECT round(dist_logistic_hazard(0.0, 1.0, 0.0), 6);
+----
+0.500000
+
+# Test logistic cumulative hazard function
+query R
+SELECT round(dist_logistic_chf(0.0, 1.0, 0.0), 6);
+----
+0.693147
+
+# Test logistic variance
+query R
+SELECT round(dist_logistic_variance(0.0, 1.0), 6);
+----
+3.289868
+
+# Test logistic mode
+query R
+SELECT round(dist_logistic_mode(0.0, 1.0), 6);
+----
+0.000000
+
+# Test logistic median
+query R
+SELECT round(dist_logistic_median(0.0, 1.0), 6);
+----
+0.000000
+
+# Test logistic skewness
+query R
+SELECT round(dist_logistic_skewness(0.0, 1.0), 6);
+----
+0.000000
+
+# Test logistic kurtosis
+query R
+SELECT round(dist_logistic_kurtosis(0.0, 1.0), 6);
+----
+4.200000
+
+# Test logistic kurtosis_excess
+query R
+SELECT round(dist_logistic_kurtosis_excess(0.0, 1.0), 6);
+----
+1.200000
+
+# Test logistic range executes without error
+query I
+SELECT dist_logistic_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test logistic support executes without error
+query I
+SELECT dist_logistic_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test logistic sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_logistic_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

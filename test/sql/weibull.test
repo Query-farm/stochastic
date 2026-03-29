@@ -1,0 +1,150 @@
+# name: test/sql/weibull.test
+# description: test weibull distribution
+# group: [sql]
+
+require stochastic
+
+# Test weibull PDF
+query R
+SELECT round(dist_weibull_pdf(1.5, 1.0, 0.5), 6);
+----
+0.744783
+
+query R
+SELECT round(dist_weibull_pdf(1.5, 1.0, 1.0), 6);
+----
+0.551819
+
+query R
+SELECT round(dist_weibull_pdf(1.5, 1.0, 2.0), 6);
+----
+0.125382
+
+# Test weibull log PDF
+query R
+SELECT round(dist_weibull_log_pdf(1.5, 1.0, 0.5), 6);
+----
+-0.294662
+
+# Test weibull CDF
+query R
+SELECT round(dist_weibull_cdf(1.5, 1.0, 0.5), 6);
+----
+0.297811
+
+query R
+SELECT round(dist_weibull_cdf(1.5, 1.0, 1.0), 6);
+----
+0.632121
+
+query R
+SELECT round(dist_weibull_cdf(1.5, 1.0, 2.0), 6);
+----
+0.940894
+
+# Test weibull CDF complement
+query R
+SELECT round(dist_weibull_cdf_complement(1.5, 1.0, 0.5), 6);
+----
+0.702189
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_weibull_cdf(1.5, 1.0, 1.0) + dist_weibull_cdf_complement(1.5, 1.0, 1.0), 1);
+----
+1.0
+
+# Test weibull log CDF
+query R
+SELECT round(dist_weibull_log_cdf(1.5, 1.0, 1.0), 6);
+----
+-0.458675
+
+# Test weibull log CDF complement
+query R
+SELECT round(dist_weibull_log_cdf_complement(1.5, 1.0, 1.0), 6);
+----
+-1.000000
+
+# Test weibull quantile (inverse CDF)
+query R
+SELECT round(dist_weibull_quantile(1.5, 1.0, 0.5), 6);
+----
+0.783220
+
+query R
+SELECT round(dist_weibull_quantile(1.5, 1.0, 0.95), 6);
+----
+2.078111
+
+# Test weibull quantile complement
+query R
+SELECT round(dist_weibull_quantile_complement(1.5, 1.0, 0.05), 6);
+----
+2.078111
+
+# Test weibull hazard function
+query R
+SELECT round(dist_weibull_hazard(1.5, 1.0, 0.5), 6);
+----
+1.060660
+
+# Test weibull cumulative hazard function
+query R
+SELECT round(dist_weibull_chf(1.5, 1.0, 0.5), 6);
+----
+0.353553
+
+# Test weibull variance
+query R
+SELECT round(dist_weibull_variance(1.5, 1.0), 6);
+----
+0.375690
+
+# Test weibull mode
+query R
+SELECT round(dist_weibull_mode(1.5, 1.0), 6);
+----
+0.480750
+
+# Test weibull median
+query R
+SELECT round(dist_weibull_median(1.5, 1.0), 6);
+----
+0.783220
+
+# Test weibull skewness
+query R
+SELECT round(dist_weibull_skewness(1.5, 1.0), 6);
+----
+1.071987
+
+# Test weibull kurtosis
+query R
+SELECT round(dist_weibull_kurtosis(1.5, 1.0), 6);
+----
+4.390404
+
+# Test weibull kurtosis_excess
+query R
+SELECT round(dist_weibull_kurtosis_excess(1.5, 1.0), 6);
+----
+1.390404
+
+# Test weibull range executes without error
+query I
+SELECT dist_weibull_range(1.5, 1.0) IS NOT NULL;
+----
+true
+
+# Test weibull support executes without error
+query I
+SELECT dist_weibull_support(1.5, 1.0) IS NOT NULL;
+----
+true
+
+# Test weibull sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_weibull_sample(1.5, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true
