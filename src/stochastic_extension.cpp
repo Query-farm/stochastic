@@ -16,6 +16,7 @@ namespace duckdb {
 
 void Load_bernoulli_distribution(ExtensionLoader &loader);
 void Load_beta_distribution(ExtensionLoader &loader);
+void Load_cauchy_distribution(ExtensionLoader &loader);
 void Load_binomial_distribution(ExtensionLoader &loader);
 void Load_chi_squared_distribution(ExtensionLoader &loader);
 void Load_exponential_distribution(ExtensionLoader &loader);
@@ -40,6 +41,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	Load_bernoulli_distribution(loader);
 	Load_beta_distribution(loader);
 	Load_binomial_distribution(loader);
+	Load_cauchy_distribution(loader);
 	Load_chi_squared_distribution(loader);
 	Load_exponential_distribution(loader);
 	Load_extreme_value_distribution(loader);

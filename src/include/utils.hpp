@@ -6,8 +6,9 @@
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/vector_operations/generic_executor.hpp"
 #include <boost/math/distributions.hpp>
-#include <boost/random.hpp>
-#include "rng_utils.hpp"
+#include <random>
+#include "rng_adapter.hpp"
+#include "custom_random.hpp"
 #include "distribution_traits.hpp"
 #include <type_traits>
 #include <utility> // std::declval
@@ -57,6 +58,9 @@ inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vec
 	using traits = distribution_traits<DistributionType>;
 	using DistParam1 = typename traits::param1_t;
 
+	auto &engine = RandomEngine::Get(state.GetContext());
+	RngAdapter rng(engine);
+
 	auto &param1_vector = args.data[0];
 
 	if (param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
@@ -85,7 +89,7 @@ inline void DistributionSampleUnary(DataChunk &args, ExpressionState &state, Vec
 	}
 
 	// Handle non-constant vectors
-	UnaryExecutor::Execute<DistParam1, ReturnType>(param1_vector, result, args.size(), [](DistParam1 param1) {
+	UnaryExecutor::Execute<DistParam1, ReturnType>(param1_vector, result, args.size(), [&rng](DistParam1 param1) {
 		distribution_traits<DistributionType>::ValidateParameters(param1);
 		DistributionType dist(param1);
 		return dist(rng);
@@ -97,6 +101,9 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 	using traits = distribution_traits<DistributionType>;
 	using DistParam1 = typename traits::param1_t;
 	using DistParam2 = typename traits::param2_t;
+
+	auto &engine = RandomEngine::Get(state.GetContext());
+	RngAdapter rng(engine);
 
 	auto &param1_vector = args.data[0];
 	auto &param2_vector = args.data[1];
@@ -129,7 +136,7 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 
 	// Handle non-constant vectors
 	BinaryExecutor::Execute<DistParam1, DistParam2, ReturnType>(
-	    param1_vector, param2_vector, result, args.size(), [](DistParam1 param1, DistParam2 param2) {
+	    param1_vector, param2_vector, result, args.size(), [&rng](DistParam1 param1, DistParam2 param2) {
 		    distribution_traits<DistributionType>::ValidateParameters(param1, param2);
 		    DistributionType dist(param1, param2);
 		    return dist(rng);
@@ -209,7 +216,7 @@ inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, 
 	using ReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
 
 	auto &dist_param1_vector = args.data[0];
-	auto &call_param_vector = args.data[2];
+	auto &call_param_vector = args.data[1];
 
 	// Handle constant vectors optimization
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
@@ -549,15 +556,5 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		    });
 	}
 }
-
-void Load_gamma_distribution(DatabaseInstance &instance);
-void Load_beta_distribution(DatabaseInstance &instance);
-void Load_laplace_distribution(DatabaseInstance &instance);
-void Load_lognormal_distribution(DatabaseInstance &instance);
-void Load_normal_distribution(DatabaseInstance &instance);
-void Load_pareto_distribution(DatabaseInstance &instance);
-void Load_uniform_real_distribution(DatabaseInstance &instance);
-void Load_uniform_int_distribution(DatabaseInstance &instance);
-void Load_bernoulli_distribution(DatabaseInstance &instance);
 
 } // namespace duckdb

@@ -224,6 +224,20 @@ Below are the parameters for each supported distribution. Use these as arguments
 | `min`     | Lower bound (integer) |
 | `max`     | Upper bound (integer, must be ≥ min) |
 
+## Reproducible Sampling
+
+All `dist_*_sample()` functions use DuckDB's built-in random engine. You can control the random seed for reproducible results using DuckDB's `setseed()` function:
+
+```sql
+-- Set seed for reproducible results
+SELECT setseed(0.42);
+
+-- These will produce the same values every time with the same seed
+SELECT dist_normal_sample(0.0, 1.0) FROM generate_series(1, 5);
+```
+
+Without calling `setseed()`, each session produces different random values.
+
 ## Usage Examples
 
 ### Normal Distribution

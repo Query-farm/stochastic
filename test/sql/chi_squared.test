@@ -1,0 +1,162 @@
+# name: test/sql/chi_squared.test
+# description: test chi_squared distribution
+# group: [sql]
+
+require stochastic
+
+# Test chi_squared PDF
+query R
+SELECT round(dist_chi_squared_pdf(5.0, 3.0), 6);
+----
+0.154180
+
+query R
+SELECT round(dist_chi_squared_pdf(5.0, 5.0), 6);
+----
+0.122042
+
+query R
+SELECT round(dist_chi_squared_pdf(5.0, 1.0), 6);
+----
+0.080657
+
+# Test chi_squared log PDF
+query R
+SELECT round(dist_chi_squared_log_pdf(5.0, 3.0), 6);
+----
+-1.869632
+
+# Test chi_squared CDF
+query R
+SELECT round(dist_chi_squared_cdf(5.0, 3.0), 6);
+----
+0.300014
+
+query R
+SELECT round(dist_chi_squared_cdf(5.0, 5.0), 6);
+----
+0.584120
+
+query R
+SELECT round(dist_chi_squared_cdf(5.0, 1.0), 6);
+----
+0.037434
+
+# Test chi_squared CDF complement
+query R
+SELECT round(dist_chi_squared_cdf_complement(5.0, 3.0), 6);
+----
+0.699986
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_chi_squared_cdf(5.0, 5.0) + dist_chi_squared_cdf_complement(5.0, 5.0), 1);
+----
+1.0
+
+# Test chi_squared log CDF
+query R
+SELECT round(dist_chi_squared_log_cdf(5.0, 5.0), 6);
+----
+-0.537649
+
+# Test chi_squared log CDF complement
+query R
+SELECT round(dist_chi_squared_log_cdf_complement(5.0, 5.0), 6);
+----
+-0.877358
+
+# Test chi_squared quantile (inverse CDF)
+query R
+SELECT round(dist_chi_squared_quantile(5.0, 0.5), 6);
+----
+4.351460
+
+query R
+SELECT round(dist_chi_squared_quantile(5.0, 0.95), 6);
+----
+11.070498
+
+# Test chi_squared quantile complement
+query R
+SELECT round(dist_chi_squared_quantile_complement(5.0, 0.05), 6);
+----
+11.070498
+
+# Test chi_squared hazard function
+query R
+SELECT round(dist_chi_squared_hazard(5.0, 3.0), 6);
+----
+0.220262
+
+# Test chi_squared cumulative hazard function
+query R
+SELECT round(dist_chi_squared_chf(5.0, 3.0), 6);
+----
+0.356695
+
+# Test chi_squared mean
+query R
+SELECT round(dist_chi_squared_mean(5.0), 6);
+----
+5.000000
+
+# Test chi_squared stddev
+query R
+SELECT round(dist_chi_squared_stddev(5.0), 6);
+----
+3.162278
+
+# Test chi_squared variance
+query R
+SELECT round(dist_chi_squared_variance(5.0), 6);
+----
+10.000000
+
+# Test chi_squared mode
+query R
+SELECT round(dist_chi_squared_mode(5.0), 6);
+----
+3.000000
+
+# Test chi_squared median
+query R
+SELECT round(dist_chi_squared_median(5.0), 6);
+----
+4.351460
+
+# Test chi_squared skewness
+query R
+SELECT round(dist_chi_squared_skewness(5.0), 6);
+----
+1.264911
+
+# Test chi_squared kurtosis
+query R
+SELECT round(dist_chi_squared_kurtosis(5.0), 6);
+----
+5.400000
+
+# Test chi_squared kurtosis_excess
+query R
+SELECT round(dist_chi_squared_kurtosis_excess(5.0), 6);
+----
+2.400000
+
+# Test chi_squared range executes without error
+query I
+SELECT dist_chi_squared_range(5.0) IS NOT NULL;
+----
+true
+
+# Test chi_squared support executes without error
+query I
+SELECT dist_chi_squared_support(5.0) IS NOT NULL;
+----
+true
+
+# Test chi_squared sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_chi_squared_sample(5.0)) > 1 FROM generate_series(1, 100);
+----
+true

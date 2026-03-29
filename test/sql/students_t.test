@@ -1,0 +1,162 @@
+# name: test/sql/students_t.test
+# description: test students_t distribution
+# group: [sql]
+
+require stochastic
+
+# Test students_t PDF
+query R
+SELECT round(dist_students_t_pdf(10.0, 0.0), 6);
+----
+0.389108
+
+query R
+SELECT round(dist_students_t_pdf(10.0, 1.0), 6);
+----
+0.230362
+
+query R
+SELECT round(dist_students_t_pdf(10.0, -1.0), 6);
+----
+0.230362
+
+# Test students_t log PDF
+query R
+SELECT round(dist_students_t_log_pdf(10.0, 0.0), 6);
+----
+-0.943897
+
+# Test students_t CDF
+query R
+SELECT round(dist_students_t_cdf(10.0, 0.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_students_t_cdf(10.0, 1.0), 6);
+----
+0.829553
+
+query R
+SELECT round(dist_students_t_cdf(10.0, -1.0), 6);
+----
+0.170447
+
+# Test students_t CDF complement
+query R
+SELECT round(dist_students_t_cdf_complement(10.0, 0.0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_students_t_cdf(10.0, 1.0) + dist_students_t_cdf_complement(10.0, 1.0), 1);
+----
+1.0
+
+# Test students_t log CDF
+query R
+SELECT round(dist_students_t_log_cdf(10.0, 1.0), 6);
+----
+-0.186868
+
+# Test students_t log CDF complement
+query R
+SELECT round(dist_students_t_log_cdf_complement(10.0, 1.0), 6);
+----
+-1.769333
+
+# Test students_t quantile (inverse CDF)
+query R
+SELECT round(dist_students_t_quantile(10.0, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_students_t_quantile(10.0, 0.95), 6);
+----
+1.812461
+
+# Test students_t quantile complement
+query R
+SELECT round(dist_students_t_quantile_complement(10.0, 0.05), 6);
+----
+1.812461
+
+# Test students_t hazard function
+query R
+SELECT round(dist_students_t_hazard(10.0, 0.0), 6);
+----
+0.778217
+
+# Test students_t cumulative hazard function
+query R
+SELECT round(dist_students_t_chf(10.0, 0.0), 6);
+----
+0.693147
+
+# Test students_t mean
+query R
+SELECT round(dist_students_t_mean(10.0), 6);
+----
+0.000000
+
+# Test students_t stddev
+query R
+SELECT round(dist_students_t_stddev(10.0), 6);
+----
+1.118034
+
+# Test students_t variance
+query R
+SELECT round(dist_students_t_variance(10.0), 6);
+----
+1.250000
+
+# Test students_t mode
+query R
+SELECT round(dist_students_t_mode(10.0), 6);
+----
+0.000000
+
+# Test students_t median
+query R
+SELECT round(dist_students_t_median(10.0), 6);
+----
+0.000000
+
+# Test students_t skewness
+query R
+SELECT round(dist_students_t_skewness(10.0), 6);
+----
+0.000000
+
+# Test students_t kurtosis
+query R
+SELECT round(dist_students_t_kurtosis(10.0), 6);
+----
+4.000000
+
+# Test students_t kurtosis_excess
+query R
+SELECT round(dist_students_t_kurtosis_excess(10.0), 6);
+----
+1.000000
+
+# Test students_t range executes without error
+query I
+SELECT dist_students_t_range(10.0) IS NOT NULL;
+----
+true
+
+# Test students_t support executes without error
+query I
+SELECT dist_students_t_support(10.0) IS NOT NULL;
+----
+true
+
+# Test students_t sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_students_t_sample(10.0)) > 1 FROM generate_series(1, 100);
+----
+true

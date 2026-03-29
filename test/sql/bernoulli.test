@@ -1,0 +1,152 @@
+# name: test/sql/bernoulli.test
+# description: test bernoulli distribution
+# group: [sql]
+
+require stochastic
+
+# Test bernoulli PDF
+query R
+SELECT round(dist_bernoulli_pdf(0.5, 0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_bernoulli_pdf(0.5, 1), 6);
+----
+0.500000
+
+# Test bernoulli log PDF
+query R
+SELECT round(dist_bernoulli_log_pdf(0.5, 0), 6);
+----
+-0.693147
+
+# Test bernoulli CDF
+query R
+SELECT round(dist_bernoulli_cdf(0.5, 0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_bernoulli_cdf(0.5, 1), 6);
+----
+1.000000
+
+# Test bernoulli CDF complement
+query R
+SELECT round(dist_bernoulli_cdf_complement(0.5, 0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_bernoulli_cdf(0.5, 1) + dist_bernoulli_cdf_complement(0.5, 1), 1);
+----
+1.0
+
+# Test bernoulli log CDF
+query R
+SELECT round(dist_bernoulli_log_cdf(0.5, 1), 6);
+----
+0.000000
+
+# Test bernoulli log CDF complement
+query R
+SELECT round(dist_bernoulli_log_cdf_complement(0.5, 1), 6);
+----
+-inf
+
+# Test bernoulli quantile (inverse CDF)
+query R
+SELECT round(dist_bernoulli_quantile(0.5, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_bernoulli_quantile(0.5, 0.95), 6);
+----
+1.000000
+
+# Test bernoulli quantile complement
+query R
+SELECT round(dist_bernoulli_quantile_complement(0.5, 0.05), 6);
+----
+1.000000
+
+# Test bernoulli hazard function
+query R
+SELECT round(dist_bernoulli_hazard(0.5, 0), 6);
+----
+1.000000
+
+# Test bernoulli cumulative hazard function
+query R
+SELECT round(dist_bernoulli_chf(0.5, 0), 6);
+----
+0.693147
+
+# Test bernoulli mean
+query R
+SELECT round(dist_bernoulli_mean(0.5), 6);
+----
+0.500000
+
+# Test bernoulli stddev
+query R
+SELECT round(dist_bernoulli_stddev(0.5), 6);
+----
+0.500000
+
+# Test bernoulli variance
+query R
+SELECT round(dist_bernoulli_variance(0.5), 6);
+----
+0.250000
+
+# Test bernoulli mode
+query R
+SELECT round(dist_bernoulli_mode(0.5), 6);
+----
+0.000000
+
+# Test bernoulli median
+query R
+SELECT round(dist_bernoulli_median(0.5), 6);
+----
+0.000000
+
+# Test bernoulli skewness
+query R
+SELECT round(dist_bernoulli_skewness(0.5), 6);
+----
+0.000000
+
+# Test bernoulli kurtosis
+query R
+SELECT round(dist_bernoulli_kurtosis(0.5), 6);
+----
+1.000000
+
+# Test bernoulli kurtosis_excess
+query R
+SELECT round(dist_bernoulli_kurtosis_excess(0.5), 6);
+----
+-2.000000
+
+# Test bernoulli range executes without error
+query I
+SELECT dist_bernoulli_range(0.5) IS NOT NULL;
+----
+true
+
+# Test bernoulli support executes without error
+query I
+SELECT dist_bernoulli_support(0.5) IS NOT NULL;
+----
+true
+
+# Test bernoulli sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_bernoulli_sample(0.5)) > 1 FROM generate_series(1, 100);
+----
+true

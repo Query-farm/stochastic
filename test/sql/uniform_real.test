@@ -1,0 +1,162 @@
+# name: test/sql/uniform_real.test
+# description: test uniform_real distribution
+# group: [sql]
+
+require stochastic
+
+# Test uniform_real PDF
+query R
+SELECT round(dist_uniform_real_pdf(0.0, 1.0, 0.5), 6);
+----
+1.000000
+
+query R
+SELECT round(dist_uniform_real_pdf(0.0, 1.0, 0.25), 6);
+----
+1.000000
+
+query R
+SELECT round(dist_uniform_real_pdf(0.0, 1.0, 0.75), 6);
+----
+1.000000
+
+# Test uniform_real log PDF
+query R
+SELECT round(dist_uniform_real_log_pdf(0.0, 1.0, 0.5), 6);
+----
+0.000000
+
+# Test uniform_real CDF
+query R
+SELECT round(dist_uniform_real_cdf(0.0, 1.0, 0.5), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_uniform_real_cdf(0.0, 1.0, 0.25), 6);
+----
+0.250000
+
+query R
+SELECT round(dist_uniform_real_cdf(0.0, 1.0, 0.75), 6);
+----
+0.750000
+
+# Test uniform_real CDF complement
+query R
+SELECT round(dist_uniform_real_cdf_complement(0.0, 1.0, 0.5), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_uniform_real_cdf(0.0, 1.0, 0.25) + dist_uniform_real_cdf_complement(0.0, 1.0, 0.25), 1);
+----
+1.0
+
+# Test uniform_real log CDF
+query R
+SELECT round(dist_uniform_real_log_cdf(0.0, 1.0, 0.25), 6);
+----
+-1.386294
+
+# Test uniform_real log CDF complement
+query R
+SELECT round(dist_uniform_real_log_cdf_complement(0.0, 1.0, 0.25), 6);
+----
+-0.287682
+
+# Test uniform_real quantile (inverse CDF)
+query R
+SELECT round(dist_uniform_real_quantile(0.0, 1.0, 0.5), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_uniform_real_quantile(0.0, 1.0, 0.95), 6);
+----
+0.950000
+
+# Test uniform_real quantile complement
+query R
+SELECT round(dist_uniform_real_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+0.950000
+
+# Test uniform_real hazard function
+query R
+SELECT round(dist_uniform_real_hazard(0.0, 1.0, 0.5), 6);
+----
+2.000000
+
+# Test uniform_real cumulative hazard function
+query R
+SELECT round(dist_uniform_real_chf(0.0, 1.0, 0.5), 6);
+----
+0.693147
+
+# Test uniform_real mean
+query R
+SELECT round(dist_uniform_real_mean(0.0, 1.0), 6);
+----
+0.500000
+
+# Test uniform_real stddev
+query R
+SELECT round(dist_uniform_real_stddev(0.0, 1.0), 6);
+----
+0.288675
+
+# Test uniform_real variance
+query R
+SELECT round(dist_uniform_real_variance(0.0, 1.0), 6);
+----
+0.083333
+
+# Test uniform_real mode
+query R
+SELECT round(dist_uniform_real_mode(0.0, 1.0), 6);
+----
+0.000000
+
+# Test uniform_real median
+query R
+SELECT round(dist_uniform_real_median(0.0, 1.0), 6);
+----
+0.500000
+
+# Test uniform_real skewness
+query R
+SELECT round(dist_uniform_real_skewness(0.0, 1.0), 6);
+----
+0.000000
+
+# Test uniform_real kurtosis
+query R
+SELECT round(dist_uniform_real_kurtosis(0.0, 1.0), 6);
+----
+1.800000
+
+# Test uniform_real kurtosis_excess
+query R
+SELECT round(dist_uniform_real_kurtosis_excess(0.0, 1.0), 6);
+----
+-1.200000
+
+# Test uniform_real range executes without error
+query I
+SELECT dist_uniform_real_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test uniform_real support executes without error
+query I
+SELECT dist_uniform_real_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test uniform_real sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_uniform_real_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

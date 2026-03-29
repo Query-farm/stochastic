@@ -1,0 +1,150 @@
+# name: test/sql/binomial.test
+# description: test binomial distribution
+# group: [sql]
+
+require stochastic
+
+# Test binomial PDF
+query R
+SELECT round(dist_binomial_pdf(10::BIGINT, 0.5, 5), 6);
+----
+0.246094
+
+query R
+SELECT round(dist_binomial_pdf(10::BIGINT, 0.5, 3), 6);
+----
+0.117188
+
+query R
+SELECT round(dist_binomial_pdf(10::BIGINT, 0.5, 7), 6);
+----
+0.117188
+
+# Test binomial log PDF
+query R
+SELECT round(dist_binomial_log_pdf(10::BIGINT, 0.5, 5), 6);
+----
+-1.402043
+
+# Test binomial CDF
+query R
+SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 5), 6);
+----
+0.623047
+
+query R
+SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 3), 6);
+----
+0.171875
+
+query R
+SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 7), 6);
+----
+0.945312
+
+# Test binomial CDF complement
+query R
+SELECT round(dist_binomial_cdf_complement(10::BIGINT, 0.5, 5), 6);
+----
+0.376953
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 3) + dist_binomial_cdf_complement(10::BIGINT, 0.5, 3), 1);
+----
+1.0
+
+# Test binomial log CDF
+query R
+SELECT round(dist_binomial_log_cdf(10::BIGINT, 0.5, 3), 6);
+----
+-1.760988
+
+# Test binomial log CDF complement
+query R
+SELECT round(dist_binomial_log_cdf_complement(10::BIGINT, 0.5, 3), 6);
+----
+-0.188591
+
+# Test binomial quantile (inverse CDF)
+query I
+SELECT dist_binomial_quantile(10::BIGINT, 0.5, 0.5);
+----
+5
+
+query I
+SELECT dist_binomial_quantile(10::BIGINT, 0.5, 0.95);
+----
+8
+
+# Test binomial quantile complement
+query I
+SELECT dist_binomial_quantile_complement(10::BIGINT, 0.5, 0.05);
+----
+8
+
+# Test binomial hazard function
+query R
+SELECT round(dist_binomial_hazard(10::BIGINT, 0.5, 5), 6);
+----
+0.652850
+
+# Test binomial cumulative hazard function
+query R
+SELECT round(dist_binomial_chf(10::BIGINT, 0.5, 5), 6);
+----
+0.975634
+
+# Test binomial variance
+query R
+SELECT round(dist_binomial_variance(10::BIGINT, 0.5), 6);
+----
+2.500000
+
+# Test binomial mode
+query R
+SELECT round(dist_binomial_mode(10::BIGINT, 0.5), 6);
+----
+5.000000
+
+# Test binomial median
+query R
+SELECT round(dist_binomial_median(10::BIGINT, 0.5), 6);
+----
+5.000000
+
+# Test binomial skewness
+query R
+SELECT round(dist_binomial_skewness(10::BIGINT, 0.5), 6);
+----
+0.000000
+
+# Test binomial kurtosis
+query R
+SELECT round(dist_binomial_kurtosis(10::BIGINT, 0.5), 6);
+----
+2.800000
+
+# Test binomial kurtosis_excess
+query R
+SELECT round(dist_binomial_kurtosis_excess(10::BIGINT, 0.5), 6);
+----
+-0.200000
+
+# Test binomial range executes without error
+query I
+SELECT dist_binomial_range(10::BIGINT, 0.5) IS NOT NULL;
+----
+true
+
+# Test binomial support executes without error
+query I
+SELECT dist_binomial_support(10::BIGINT, 0.5) IS NOT NULL;
+----
+true
+
+# Test binomial sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_binomial_sample(10::BIGINT, 0.5)) > 1 FROM generate_series(1, 100);
+----
+true

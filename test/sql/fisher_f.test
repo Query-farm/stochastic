@@ -1,0 +1,150 @@
+# name: test/sql/fisher_f.test
+# description: test fisher_f distribution
+# group: [sql]
+
+require stochastic
+
+# Test fisher_f PDF
+query R
+SELECT round(dist_fisher_f_pdf(5.0, 10.0, 1.0), 6);
+----
+0.495480
+
+query R
+SELECT round(dist_fisher_f_pdf(5.0, 10.0, 2.0), 6);
+----
+0.162006
+
+query R
+SELECT round(dist_fisher_f_pdf(5.0, 10.0, 0.5), 6);
+----
+0.687607
+
+# Test fisher_f log PDF
+query R
+SELECT round(dist_fisher_f_log_pdf(5.0, 10.0, 1.0), 6);
+----
+-0.702229
+
+# Test fisher_f CDF
+query R
+SELECT round(dist_fisher_f_cdf(5.0, 10.0, 1.0), 6);
+----
+0.534881
+
+query R
+SELECT round(dist_fisher_f_cdf(5.0, 10.0, 2.0), 6);
+----
+0.835805
+
+query R
+SELECT round(dist_fisher_f_cdf(5.0, 10.0, 0.5), 6);
+----
+0.229975
+
+# Test fisher_f CDF complement
+query R
+SELECT round(dist_fisher_f_cdf_complement(5.0, 10.0, 1.0), 6);
+----
+0.465119
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_fisher_f_cdf(5.0, 10.0, 2.0) + dist_fisher_f_cdf_complement(5.0, 10.0, 2.0), 1);
+----
+1.0
+
+# Test fisher_f log CDF
+query R
+SELECT round(dist_fisher_f_log_cdf(5.0, 10.0, 2.0), 6);
+----
+-0.179360
+
+# Test fisher_f log CDF complement
+query R
+SELECT round(dist_fisher_f_log_cdf_complement(5.0, 10.0, 2.0), 6);
+----
+-1.806701
+
+# Test fisher_f quantile (inverse CDF)
+query R
+SELECT round(dist_fisher_f_quantile(5.0, 10.0, 0.5), 6);
+----
+0.931933
+
+query R
+SELECT round(dist_fisher_f_quantile(5.0, 10.0, 0.95), 6);
+----
+3.325835
+
+# Test fisher_f quantile complement
+query R
+SELECT round(dist_fisher_f_quantile_complement(5.0, 10.0, 0.05), 6);
+----
+3.325835
+
+# Test fisher_f hazard function
+query R
+SELECT round(dist_fisher_f_hazard(5.0, 10.0, 1.0), 6);
+----
+1.065274
+
+# Test fisher_f cumulative hazard function
+query R
+SELECT round(dist_fisher_f_chf(5.0, 10.0, 1.0), 6);
+----
+0.765461
+
+# Test fisher_f variance
+query R
+SELECT round(dist_fisher_f_variance(5.0, 10.0), 6);
+----
+1.354167
+
+# Test fisher_f mode
+query R
+SELECT round(dist_fisher_f_mode(5.0, 10.0), 6);
+----
+0.500000
+
+# Test fisher_f median
+query R
+SELECT round(dist_fisher_f_median(5.0, 10.0), 6);
+----
+0.931933
+
+# Test fisher_f skewness
+query R
+SELECT round(dist_fisher_f_skewness(5.0, 10.0), 6);
+----
+3.867020
+
+# Test fisher_f kurtosis
+query R
+SELECT round(dist_fisher_f_kurtosis(5.0, 10.0), 6);
+----
+53.861538
+
+# Test fisher_f kurtosis_excess
+query R
+SELECT round(dist_fisher_f_kurtosis_excess(5.0, 10.0), 6);
+----
+50.861538
+
+# Test fisher_f range executes without error
+query I
+SELECT dist_fisher_f_range(5.0, 10.0) IS NOT NULL;
+----
+true
+
+# Test fisher_f support executes without error
+query I
+SELECT dist_fisher_f_support(5.0, 10.0) IS NOT NULL;
+----
+true
+
+# Test fisher_f sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_fisher_f_sample(5.0, 10.0)) > 1 FROM generate_series(1, 100);
+----
+true

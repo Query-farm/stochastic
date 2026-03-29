@@ -1,0 +1,144 @@
+# name: test/sql/pareto.test
+# description: test pareto distribution
+# group: [sql]
+
+require stochastic
+
+# Test pareto PDF
+query R
+SELECT round(dist_pareto_pdf(1.0, 3.0, 1.5), 6);
+----
+0.592593
+
+query R
+SELECT round(dist_pareto_pdf(1.0, 3.0, 2.0), 6);
+----
+0.187500
+
+query R
+SELECT round(dist_pareto_pdf(1.0, 3.0, 3.0), 6);
+----
+0.037037
+
+# Test pareto log PDF
+query R
+SELECT round(dist_pareto_log_pdf(1.0, 3.0, 1.5), 6);
+----
+-0.523248
+
+# Test pareto CDF
+query R
+SELECT round(dist_pareto_cdf(1.0, 3.0, 1.5), 6);
+----
+0.703704
+
+query R
+SELECT round(dist_pareto_cdf(1.0, 3.0, 2.0), 6);
+----
+0.875000
+
+query R
+SELECT round(dist_pareto_cdf(1.0, 3.0, 3.0), 6);
+----
+0.962963
+
+# Test pareto CDF complement
+query R
+SELECT round(dist_pareto_cdf_complement(1.0, 3.0, 1.5), 6);
+----
+0.296296
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_pareto_cdf(1.0, 3.0, 2.0) + dist_pareto_cdf_complement(1.0, 3.0, 2.0), 1);
+----
+1.0
+
+# Test pareto log CDF
+query R
+SELECT round(dist_pareto_log_cdf(1.0, 3.0, 2.0), 6);
+----
+-0.133531
+
+# Test pareto log CDF complement
+query R
+SELECT round(dist_pareto_log_cdf_complement(1.0, 3.0, 2.0), 6);
+----
+-2.079442
+
+# Test pareto quantile (inverse CDF)
+query R
+SELECT round(dist_pareto_quantile(1.0, 3.0, 0.5), 6);
+----
+1.259921
+
+query R
+SELECT round(dist_pareto_quantile(1.0, 3.0, 0.95), 6);
+----
+2.714418
+
+# Test pareto quantile complement
+query R
+SELECT round(dist_pareto_quantile_complement(1.0, 3.0, 0.05), 6);
+----
+2.714418
+
+# Test pareto hazard function
+query R
+SELECT round(dist_pareto_hazard(1.0, 3.0, 1.5), 6);
+----
+2.000000
+
+# Test pareto cumulative hazard function
+query R
+SELECT round(dist_pareto_chf(1.0, 3.0, 1.5), 6);
+----
+1.216395
+
+# Test pareto mean
+query R
+SELECT round(dist_pareto_mean(1.0, 3.0), 6);
+----
+1.500000
+
+# Test pareto stddev
+query R
+SELECT round(dist_pareto_stddev(1.0, 3.0), 6);
+----
+0.866025
+
+# Test pareto variance
+query R
+SELECT round(dist_pareto_variance(1.0, 3.0), 6);
+----
+0.750000
+
+# Test pareto mode
+query R
+SELECT round(dist_pareto_mode(1.0, 3.0), 6);
+----
+1.000000
+
+# Test pareto median
+query R
+SELECT round(dist_pareto_median(1.0, 3.0), 6);
+----
+1.259921
+
+# Test pareto range executes without error
+query I
+SELECT dist_pareto_range(1.0, 3.0) IS NOT NULL;
+----
+true
+
+# Test pareto support executes without error
+query I
+SELECT dist_pareto_support(1.0, 3.0) IS NOT NULL;
+----
+true
+
+# Test pareto sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_pareto_sample(1.0, 3.0)) > 1 FROM generate_series(1, 100);
+----
+true
