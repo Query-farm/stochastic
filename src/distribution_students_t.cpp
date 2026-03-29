@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -9,7 +9,7 @@ namespace duckdb {
 #define DISTRIBUTION_NAME       students_t_distribution
 
 #define DISTRIBUTION        boost::math::DISTRIBUTION_NAME<double>
-#define SAMPLE_DISTRIBUTION boost::random::student_t_distribution<double>
+#define SAMPLE_DISTRIBUTION std::student_t_distribution<double>
 #define REGISTER            RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>

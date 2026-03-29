@@ -1,0 +1,138 @@
+# name: test/sql/uniform_int.test
+# description: test uniform_int distribution
+# group: [sql]
+
+require stochastic
+
+# Test uniform_int PDF
+query R
+SELECT round(dist_uniform_int_pdf(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+0.200000
+
+query R
+SELECT round(dist_uniform_int_pdf(1::DOUBLE, 6::DOUBLE, 3::BIGINT), 6);
+----
+0.200000
+
+query R
+SELECT round(dist_uniform_int_pdf(1::DOUBLE, 6::DOUBLE, 5::BIGINT), 6);
+----
+0.200000
+
+# Test uniform_int log PDF
+query R
+SELECT round(dist_uniform_int_log_pdf(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+-1.609438
+
+# Test uniform_int CDF
+query R
+SELECT round(dist_uniform_int_cdf(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+0.200000
+
+query R
+SELECT round(dist_uniform_int_cdf(1::DOUBLE, 6::DOUBLE, 3::BIGINT), 6);
+----
+0.400000
+
+query R
+SELECT round(dist_uniform_int_cdf(1::DOUBLE, 6::DOUBLE, 5::BIGINT), 6);
+----
+0.800000
+
+# Test uniform_int CDF complement
+query R
+SELECT round(dist_uniform_int_cdf_complement(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+0.800000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_uniform_int_cdf(1::DOUBLE, 6::DOUBLE, 3::BIGINT) + dist_uniform_int_cdf_complement(1::DOUBLE, 6::DOUBLE, 3::BIGINT), 1);
+----
+1.0
+
+# Test uniform_int log CDF
+query R
+SELECT round(dist_uniform_int_log_cdf(1::DOUBLE, 6::DOUBLE, 3::BIGINT), 6);
+----
+-0.916291
+
+# Test uniform_int log CDF complement
+query R
+SELECT round(dist_uniform_int_log_cdf_complement(1::DOUBLE, 6::DOUBLE, 3::BIGINT), 6);
+----
+-0.510826
+
+# Test uniform_int quantile (inverse CDF)
+query I
+SELECT dist_uniform_int_quantile(1::DOUBLE, 6::DOUBLE, 0.5);
+----
+3
+
+query I
+SELECT dist_uniform_int_quantile(1::DOUBLE, 6::DOUBLE, 0.95);
+----
+5
+
+# Test uniform_int quantile complement
+query I
+SELECT dist_uniform_int_quantile_complement(1::DOUBLE, 6::DOUBLE, 0.05);
+----
+5
+
+# Test uniform_int hazard function
+query R
+SELECT round(dist_uniform_int_hazard(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+0.250000
+
+# Test uniform_int cumulative hazard function
+query R
+SELECT round(dist_uniform_int_chf(1::DOUBLE, 6::DOUBLE, 2::BIGINT), 6);
+----
+0.223144
+
+# Test uniform_int mode
+query R
+SELECT round(dist_uniform_int_mode(1::DOUBLE, 6::DOUBLE), 6);
+----
+1.000000
+
+# Test uniform_int skewness
+query R
+SELECT round(dist_uniform_int_skewness(1::DOUBLE, 6::DOUBLE), 6);
+----
+0.000000
+
+# Test uniform_int kurtosis
+query R
+SELECT round(dist_uniform_int_kurtosis(1::DOUBLE, 6::DOUBLE), 6);
+----
+1.800000
+
+# Test uniform_int kurtosis_excess
+query R
+SELECT round(dist_uniform_int_kurtosis_excess(1::DOUBLE, 6::DOUBLE), 6);
+----
+-1.200000
+
+# Test uniform_int range executes without error
+query I
+SELECT dist_uniform_int_range(1::DOUBLE, 6::DOUBLE) IS NOT NULL;
+----
+true
+
+# Test uniform_int support executes without error
+query I
+SELECT dist_uniform_int_support(1::DOUBLE, 6::DOUBLE) IS NOT NULL;
+----
+true
+
+# Test uniform_int sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_uniform_int_sample(1::DOUBLE, 6::DOUBLE)) > 1 FROM generate_series(1, 100);
+----
+true

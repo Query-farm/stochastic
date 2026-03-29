@@ -1,0 +1,162 @@
+# name: test/sql/lognormal.test
+# description: test lognormal distribution
+# group: [sql]
+
+require stochastic
+
+# Test lognormal PDF
+query R
+SELECT round(dist_lognormal_pdf(0.0, 1.0, 1.0), 6);
+----
+0.398942
+
+query R
+SELECT round(dist_lognormal_pdf(0.0, 1.0, 2.0), 6);
+----
+0.156874
+
+query R
+SELECT round(dist_lognormal_pdf(0.0, 1.0, 0.5), 6);
+----
+0.627496
+
+# Test lognormal log PDF
+query R
+SELECT round(dist_lognormal_log_pdf(0.0, 1.0, 1.0), 6);
+----
+-0.918939
+
+# Test lognormal CDF
+query R
+SELECT round(dist_lognormal_cdf(0.0, 1.0, 1.0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_lognormal_cdf(0.0, 1.0, 2.0), 6);
+----
+0.755891
+
+query R
+SELECT round(dist_lognormal_cdf(0.0, 1.0, 0.5), 6);
+----
+0.244109
+
+# Test lognormal CDF complement
+query R
+SELECT round(dist_lognormal_cdf_complement(0.0, 1.0, 1.0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_lognormal_cdf(0.0, 1.0, 2.0) + dist_lognormal_cdf_complement(0.0, 1.0, 2.0), 1);
+----
+1.0
+
+# Test lognormal log CDF
+query R
+SELECT round(dist_lognormal_log_cdf(0.0, 1.0, 2.0), 6);
+----
+-0.279858
+
+# Test lognormal log CDF complement
+query R
+SELECT round(dist_lognormal_log_cdf_complement(0.0, 1.0, 2.0), 6);
+----
+-1.410142
+
+# Test lognormal quantile (inverse CDF)
+query R
+SELECT round(dist_lognormal_quantile(0.0, 1.0, 0.5), 6);
+----
+1.000000
+
+query R
+SELECT round(dist_lognormal_quantile(0.0, 1.0, 0.95), 6);
+----
+5.180252
+
+# Test lognormal quantile complement
+query R
+SELECT round(dist_lognormal_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+5.180252
+
+# Test lognormal hazard function
+query R
+SELECT round(dist_lognormal_hazard(0.0, 1.0, 1.0), 6);
+----
+0.797885
+
+# Test lognormal cumulative hazard function
+query R
+SELECT round(dist_lognormal_chf(0.0, 1.0, 1.0), 6);
+----
+0.693147
+
+# Test lognormal mean
+query R
+SELECT round(dist_lognormal_mean(0.0, 1.0), 6);
+----
+1.648721
+
+# Test lognormal stddev
+query R
+SELECT round(dist_lognormal_stddev(0.0, 1.0), 6);
+----
+2.161197
+
+# Test lognormal variance
+query R
+SELECT round(dist_lognormal_variance(0.0, 1.0), 6);
+----
+4.670774
+
+# Test lognormal mode
+query R
+SELECT round(dist_lognormal_mode(0.0, 1.0), 6);
+----
+0.367879
+
+# Test lognormal median
+query R
+SELECT round(dist_lognormal_median(0.0, 1.0), 6);
+----
+1.000000
+
+# Test lognormal skewness
+query R
+SELECT round(dist_lognormal_skewness(0.0, 1.0), 6);
+----
+6.184877
+
+# Test lognormal kurtosis
+query R
+SELECT round(dist_lognormal_kurtosis(0.0, 1.0), 6);
+----
+113.936392
+
+# Test lognormal kurtosis_excess
+query R
+SELECT round(dist_lognormal_kurtosis_excess(0.0, 1.0), 6);
+----
+110.936392
+
+# Test lognormal range executes without error
+query I
+SELECT dist_lognormal_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test lognormal support executes without error
+query I
+SELECT dist_lognormal_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test lognormal sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_lognormal_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true

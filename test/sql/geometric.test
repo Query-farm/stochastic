@@ -1,0 +1,162 @@
+# name: test/sql/geometric.test
+# description: test geometric distribution
+# group: [sql]
+
+require stochastic
+
+# Test geometric PDF
+query R
+SELECT round(dist_geometric_pdf(0.5, 0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_geometric_pdf(0.5, 1), 6);
+----
+0.250000
+
+query R
+SELECT round(dist_geometric_pdf(0.5, 2), 6);
+----
+0.125000
+
+# Test geometric log PDF
+query R
+SELECT round(dist_geometric_log_pdf(0.5, 0), 6);
+----
+-0.693147
+
+# Test geometric CDF
+query R
+SELECT round(dist_geometric_cdf(0.5, 0), 6);
+----
+0.500000
+
+query R
+SELECT round(dist_geometric_cdf(0.5, 1), 6);
+----
+0.750000
+
+query R
+SELECT round(dist_geometric_cdf(0.5, 2), 6);
+----
+0.875000
+
+# Test geometric CDF complement
+query R
+SELECT round(dist_geometric_cdf_complement(0.5, 0), 6);
+----
+0.500000
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_geometric_cdf(0.5, 1) + dist_geometric_cdf_complement(0.5, 1), 1);
+----
+1.0
+
+# Test geometric log CDF
+query R
+SELECT round(dist_geometric_log_cdf(0.5, 1), 6);
+----
+-0.287682
+
+# Test geometric log CDF complement
+query R
+SELECT round(dist_geometric_log_cdf_complement(0.5, 1), 6);
+----
+-1.386294
+
+# Test geometric quantile (inverse CDF)
+query R
+SELECT round(dist_geometric_quantile(0.5, 0.5), 6);
+----
+0.000000
+
+query R
+SELECT round(dist_geometric_quantile(0.5, 0.95), 6);
+----
+3.321928
+
+# Test geometric quantile complement
+query R
+SELECT round(dist_geometric_quantile_complement(0.5, 0.05), 6);
+----
+3.321928
+
+# Test geometric hazard function
+query R
+SELECT round(dist_geometric_hazard(0.5, 0), 6);
+----
+1.000000
+
+# Test geometric cumulative hazard function
+query R
+SELECT round(dist_geometric_chf(0.5, 0), 6);
+----
+0.693147
+
+# Test geometric mean
+query R
+SELECT round(dist_geometric_mean(0.5), 6);
+----
+1.000000
+
+# Test geometric stddev
+query R
+SELECT round(dist_geometric_stddev(0.5), 6);
+----
+1.414214
+
+# Test geometric variance
+query R
+SELECT round(dist_geometric_variance(0.5), 6);
+----
+2.000000
+
+# Test geometric mode
+query R
+SELECT round(dist_geometric_mode(0.5), 6);
+----
+0.000000
+
+# Test geometric median
+query R
+SELECT round(dist_geometric_median(0.5), 6);
+----
+0.000000
+
+# Test geometric skewness
+query R
+SELECT round(dist_geometric_skewness(0.5), 6);
+----
+2.121320
+
+# Test geometric kurtosis
+query R
+SELECT round(dist_geometric_kurtosis(0.5), 6);
+----
+9.500000
+
+# Test geometric kurtosis_excess
+query R
+SELECT round(dist_geometric_kurtosis_excess(0.5), 6);
+----
+6.500000
+
+# Test geometric range executes without error
+query I
+SELECT dist_geometric_range(0.5) IS NOT NULL;
+----
+true
+
+# Test geometric support executes without error
+query I
+SELECT dist_geometric_support(0.5) IS NOT NULL;
+----
+true
+
+# Test geometric sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_geometric_sample(0.5)) > 1 FROM generate_series(1, 100);
+----
+true

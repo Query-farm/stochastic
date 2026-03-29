@@ -1,0 +1,162 @@
+# name: test/sql/exponential.test
+# description: test exponential distribution
+# group: [sql]
+
+require stochastic
+
+# Test exponential PDF
+query R
+SELECT round(dist_exponential_pdf(1.0, 0.5), 6);
+----
+0.606531
+
+query R
+SELECT round(dist_exponential_pdf(1.0, 1.0), 6);
+----
+0.367879
+
+query R
+SELECT round(dist_exponential_pdf(1.0, 2.0), 6);
+----
+0.135335
+
+# Test exponential log PDF
+query R
+SELECT round(dist_exponential_log_pdf(1.0, 0.5), 6);
+----
+-0.500000
+
+# Test exponential CDF
+query R
+SELECT round(dist_exponential_cdf(1.0, 0.5), 6);
+----
+0.393469
+
+query R
+SELECT round(dist_exponential_cdf(1.0, 1.0), 6);
+----
+0.632121
+
+query R
+SELECT round(dist_exponential_cdf(1.0, 2.0), 6);
+----
+0.864665
+
+# Test exponential CDF complement
+query R
+SELECT round(dist_exponential_cdf_complement(1.0, 0.5), 6);
+----
+0.606531
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_exponential_cdf(1.0, 1.0) + dist_exponential_cdf_complement(1.0, 1.0), 1);
+----
+1.0
+
+# Test exponential log CDF
+query R
+SELECT round(dist_exponential_log_cdf(1.0, 1.0), 6);
+----
+-0.458675
+
+# Test exponential log CDF complement
+query R
+SELECT round(dist_exponential_log_cdf_complement(1.0, 1.0), 6);
+----
+-1.000000
+
+# Test exponential quantile (inverse CDF)
+query R
+SELECT round(dist_exponential_quantile(1.0, 0.5), 6);
+----
+0.693147
+
+query R
+SELECT round(dist_exponential_quantile(1.0, 0.95), 6);
+----
+2.995732
+
+# Test exponential quantile complement
+query R
+SELECT round(dist_exponential_quantile_complement(1.0, 0.05), 6);
+----
+2.995732
+
+# Test exponential hazard function
+query R
+SELECT round(dist_exponential_hazard(1.0, 0.5), 6);
+----
+1.000000
+
+# Test exponential cumulative hazard function
+query R
+SELECT round(dist_exponential_chf(1.0, 0.5), 6);
+----
+0.500000
+
+# Test exponential mean
+query R
+SELECT round(dist_exponential_mean(1.0), 6);
+----
+1.000000
+
+# Test exponential stddev
+query R
+SELECT round(dist_exponential_stddev(1.0), 6);
+----
+1.000000
+
+# Test exponential variance
+query R
+SELECT round(dist_exponential_variance(1.0), 6);
+----
+1.000000
+
+# Test exponential mode
+query R
+SELECT round(dist_exponential_mode(1.0), 6);
+----
+0.000000
+
+# Test exponential median
+query R
+SELECT round(dist_exponential_median(1.0), 6);
+----
+0.693147
+
+# Test exponential skewness
+query R
+SELECT round(dist_exponential_skewness(1.0), 6);
+----
+2.000000
+
+# Test exponential kurtosis
+query R
+SELECT round(dist_exponential_kurtosis(1.0), 6);
+----
+9.000000
+
+# Test exponential kurtosis_excess
+query R
+SELECT round(dist_exponential_kurtosis_excess(1.0), 6);
+----
+6.000000
+
+# Test exponential range executes without error
+query I
+SELECT dist_exponential_range(1.0) IS NOT NULL;
+----
+true
+
+# Test exponential support executes without error
+query I
+SELECT dist_exponential_support(1.0) IS NOT NULL;
+----
+true
+
+# Test exponential sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_exponential_sample(1.0)) > 1 FROM generate_series(1, 100);
+----
+true

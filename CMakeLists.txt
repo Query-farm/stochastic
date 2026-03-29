@@ -21,7 +21,6 @@ file(GLOB DISTRIBUTION_SOURCES "src/distribution_*.cpp")
 
 set(EXTENSION_SOURCES
     src/stochastic_extension.cpp
-    src/rng_utils.cpp
     src/query_farm_telemetry.cpp
     ${DISTRIBUTION_SOURCES}
 )
@@ -31,6 +30,8 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 target_link_libraries(${EXTENSION_NAME} Boost::math)
 target_link_libraries(${LOADABLE_EXTENSION_NAME} Boost::math)
+target_compile_definitions(${EXTENSION_NAME} PRIVATE BOOST_MATH_STANDALONE)
+target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE BOOST_MATH_STANDALONE)
 
 install(
   TARGETS ${EXTENSION_NAME}

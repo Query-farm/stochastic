@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include "rng_utils.hpp"
+
 #include "distribution_traits.hpp"
 
 namespace duckdb {
@@ -7,8 +7,8 @@ namespace duckdb {
 #define DISTRIBUTION_SHORT_NAME "uniform_int"
 #define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
 #define DISTRIBUTION_NAME       uniform_int_distribution
-#define DISTRIBUTION            boost::math::uniform_distribution<int64_t>
-#define SAMPLE_DISTRIBUTION     boost::random::uniform_int_distribution<int64_t>
+#define DISTRIBUTION            boost::math::uniform_distribution<double>
+#define SAMPLE_DISTRIBUTION     std::uniform_int_distribution<int64_t>
 #define REGISTER                RegisterFunction<DISTRIBUTION>
 
 template <typename DistType>
@@ -48,7 +48,15 @@ LOAD_DISTRIBUTION_FN {
 	vector<std::pair<string, LogicalType>> param_names_quantile = {{"p", LogicalType::DOUBLE}};
 	vector<std::pair<string, LogicalType>> param_names_unary = {{"x", LogicalType::BIGINT}};
 
+	// x-parameter functions (pdf, cdf, etc.) where x is BIGINT
 	auto make_unary = [](auto func) {
+		return [func](DataChunk &args, ExpressionState &state, Vector &result) {
+			DistributionCallBinaryUnary<DISTRIBUTION, int64_t>(args, state, result, func);
+		};
+	};
+
+	// p-parameter functions (quantile) where p is DOUBLE
+	auto make_unary_p = [](auto func) {
 		return [func](DataChunk &args, ExpressionState &state, Vector &result) {
 			DistributionCallBinaryUnary<DISTRIBUTION, double>(args, state, result, func);
 		};
@@ -119,15 +127,15 @@ LOAD_DISTRIBUTION_FN {
 	// === QUANTILE FUNCTIONS ===
 	REGISTER(
 	    loader, "quantile", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	    make_unary([](const auto &dist, auto p) -> DISTRIBUTION::value_type { return boost::math::quantile(dist, p); }),
+	    make_unary_p([](const auto &dist, auto p) -> int64_t { return static_cast<int64_t>(boost::math::quantile(dist, p)); }),
 	    "Computes the quantile function (inverse CDF) of the " + DISTRIBUTION_TEXT +
 	        ". Returns the value x "
 	        "such that P(X ≤ x) = p, where p is the cumulative probability.",
 	    "quantile(1, 6, 0.95)", param_names_quantile);
 
 	REGISTER(loader, "quantile_complement", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_unary([](const auto &dist, auto p) -> DISTRIBUTION::value_type {
-		         return boost::math::quantile(boost::math::complement(dist, p));
+	         make_unary_p([](const auto &dist, auto p) -> int64_t {
+		         return static_cast<int64_t>(boost::math::quantile(boost::math::complement(dist, p)));
 	         }),
 	         "Computes the complementary quantile function of the " + DISTRIBUTION_TEXT +
 	             ". Returns the value x "
@@ -147,24 +155,24 @@ LOAD_DISTRIBUTION_FN {
 	// === DISTRIBUTION PROPERTIES ===
 
 	REGISTER(loader, "mean", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) { return boost::math::mean(dist); }),
+	         make_none([](const auto &dist) -> int64_t { return static_cast<int64_t>(boost::math::mean(dist)); }),
 	         "Returns the mean (μ) of the " + DISTRIBUTION_TEXT + ", which is the first moment.", "mean(1, 6)");
 
 	REGISTER(loader, "stddev", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) { return boost::math::standard_deviation(dist); }),
+	         make_none([](const auto &dist) -> int64_t { return static_cast<int64_t>(boost::math::standard_deviation(dist)); }),
 	         "Returns the standard deviation (σ) of the " + DISTRIBUTION_TEXT + ".", "stddev(1, 6)");
 
 	REGISTER(loader, "variance", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) { return boost::math::variance(dist); }),
+	         make_none([](const auto &dist) -> int64_t { return static_cast<int64_t>(boost::math::variance(dist)); }),
 	         "Returns the variance (σ²) of the " + DISTRIBUTION_TEXT + ".", "variance(1, 6)");
 
 	REGISTER(loader, "mode", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) { return boost::math::mode(dist); }),
+	         make_none([](const auto &dist) -> int64_t { return static_cast<int64_t>(boost::math::mode(dist)); }),
 	         "Returns the mode (most likely value) of the " + DISTRIBUTION_TEXT + ", which equals the mean.",
 	         "mode(1, 6)");
 
 	REGISTER(loader, "median", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) { return boost::math::median(dist); }),
+	         make_none([](const auto &dist) -> int64_t { return static_cast<int64_t>(boost::math::median(dist)); }),
 	         "Returns the median (50th percentile) of the " + DISTRIBUTION_TEXT + ", which equals the mean.",
 	         "median(1, 6)");
 
@@ -181,11 +189,17 @@ LOAD_DISTRIBUTION_FN {
 	         "Returns the excess kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis_excess(1, 6)");
 
 	REGISTER(loader, "range", FunctionStability::CONSISTENT, LogicalType::ARRAY(LogicalType::BIGINT, 2),
-	         make_none([](const auto &dist) { return boost::math::range(dist); }),
+	         make_none([](const auto &dist) -> std::pair<int64_t, int64_t> {
+		         auto r = boost::math::range(dist);
+		         return {static_cast<int64_t>(r.first), static_cast<int64_t>(r.second)};
+	         }),
 	         "Returns the range of the " + DISTRIBUTION_TEXT + ".", "range(1, 6)");
 
 	REGISTER(loader, "support", FunctionStability::CONSISTENT, LogicalType::ARRAY(LogicalType::BIGINT, 2),
-	         make_none([](const auto &dist) { return boost::math::support(dist); }),
+	         make_none([](const auto &dist) -> std::pair<int64_t, int64_t> {
+		         auto s = boost::math::support(dist);
+		         return {static_cast<int64_t>(s.first), static_cast<int64_t>(s.second)};
+	         }),
 	         "Returns the support of the " + DISTRIBUTION_TEXT + ".", "support(1, 6)");
 }
 } // end namespace duckdb

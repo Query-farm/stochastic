@@ -1,0 +1,150 @@
+# name: test/sql/extreme_value.test
+# description: test extreme_value distribution
+# group: [sql]
+
+require stochastic
+
+# Test extreme_value PDF
+query R
+SELECT round(dist_extreme_value_pdf(0.0, 1.0, 0.0), 6);
+----
+0.367879
+
+query R
+SELECT round(dist_extreme_value_pdf(0.0, 1.0, 1.0), 6);
+----
+0.254646
+
+query R
+SELECT round(dist_extreme_value_pdf(0.0, 1.0, -1.0), 6);
+----
+0.179374
+
+# Test extreme_value log PDF
+query R
+SELECT round(dist_extreme_value_log_pdf(0.0, 1.0, 0.0), 6);
+----
+-1.000000
+
+# Test extreme_value CDF
+query R
+SELECT round(dist_extreme_value_cdf(0.0, 1.0, 0.0), 6);
+----
+0.367879
+
+query R
+SELECT round(dist_extreme_value_cdf(0.0, 1.0, 1.0), 6);
+----
+0.692201
+
+query R
+SELECT round(dist_extreme_value_cdf(0.0, 1.0, -1.0), 6);
+----
+0.065988
+
+# Test extreme_value CDF complement
+query R
+SELECT round(dist_extreme_value_cdf_complement(0.0, 1.0, 0.0), 6);
+----
+0.632121
+
+# Verify CDF + CDF complement = 1
+query R
+SELECT round(dist_extreme_value_cdf(0.0, 1.0, 1.0) + dist_extreme_value_cdf_complement(0.0, 1.0, 1.0), 1);
+----
+1.0
+
+# Test extreme_value log CDF
+query R
+SELECT round(dist_extreme_value_log_cdf(0.0, 1.0, 1.0), 6);
+----
+-0.367879
+
+# Test extreme_value log CDF complement
+query R
+SELECT round(dist_extreme_value_log_cdf_complement(0.0, 1.0, 1.0), 6);
+----
+-1.178307
+
+# Test extreme_value quantile (inverse CDF)
+query R
+SELECT round(dist_extreme_value_quantile(0.0, 1.0, 0.5), 6);
+----
+0.366513
+
+query R
+SELECT round(dist_extreme_value_quantile(0.0, 1.0, 0.95), 6);
+----
+2.970195
+
+# Test extreme_value quantile complement
+query R
+SELECT round(dist_extreme_value_quantile_complement(0.0, 1.0, 0.05), 6);
+----
+2.970195
+
+# Test extreme_value hazard function
+query R
+SELECT round(dist_extreme_value_hazard(0.0, 1.0, 0.0), 6);
+----
+0.581977
+
+# Test extreme_value cumulative hazard function
+query R
+SELECT round(dist_extreme_value_chf(0.0, 1.0, 0.0), 6);
+----
+0.458675
+
+# Test extreme_value variance
+query R
+SELECT round(dist_extreme_value_variance(0.0, 1.0), 6);
+----
+1.644934
+
+# Test extreme_value mode
+query R
+SELECT round(dist_extreme_value_mode(0.0, 1.0), 6);
+----
+0.000000
+
+# Test extreme_value median
+query R
+SELECT round(dist_extreme_value_median(0.0, 1.0), 6);
+----
+0.366513
+
+# Test extreme_value skewness
+query R
+SELECT round(dist_extreme_value_skewness(0.0, 1.0), 6);
+----
+1.139547
+
+# Test extreme_value kurtosis
+query R
+SELECT round(dist_extreme_value_kurtosis(0.0, 1.0), 6);
+----
+5.400000
+
+# Test extreme_value kurtosis_excess
+query R
+SELECT round(dist_extreme_value_kurtosis_excess(0.0, 1.0), 6);
+----
+2.400000
+
+# Test extreme_value range executes without error
+query I
+SELECT dist_extreme_value_range(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test extreme_value support executes without error
+query I
+SELECT dist_extreme_value_support(0.0, 1.0) IS NOT NULL;
+----
+true
+
+# Test extreme_value sample returns varying values
+query I
+SELECT COUNT(DISTINCT dist_extreme_value_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
+----
+true
