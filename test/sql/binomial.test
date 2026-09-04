@@ -37,10 +37,12 @@ SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 3), 6);
 ----
 0.171875
 
+# round to 5 dp: the exact value is 0.9453125, a half-way point at 6 dp where
+# native and wasm builds round in opposite directions (.945312 vs .945313).
 query R
-SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 7), 6);
+SELECT round(dist_binomial_cdf(10::BIGINT, 0.5, 7), 5);
 ----
-0.945312
+0.94531
 
 # Test binomial CDF complement
 query R
