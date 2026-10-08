@@ -18,7 +18,6 @@ template <typename DistributionType, typename FuncType>
 void RegisterFunction(ExtensionLoader &loader, const std::string &name, const FunctionStability &stability,
                       const LogicalType &result_type, FuncType func, const std::string &description,
                       const std::string &example, vector<std::pair<string, LogicalType>> additional_params = {}) {
-
 	vector<LogicalType> final_types;
 	for (auto item : distribution_traits<DistributionType>::LogicalParamTypes()) {
 		final_types.push_back(item);
@@ -145,7 +144,6 @@ inline void DistributionSampleBinary(DataChunk &args, ExpressionState &state, Ve
 
 template <typename DistributionType, typename CallParam, typename Func>
 inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
-
 	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
 	using DistParam2 = typename distribution_traits<DistributionType>::param2_t;
 	using ReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
@@ -158,7 +156,6 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
 	    dist_param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
 	    call_param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-
 		if (ConstantVector::IsNull(dist_param1_vector) || ConstantVector::IsNull(dist_param2_vector) ||
 		    ConstantVector::IsNull(call_param_vector)) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
@@ -211,7 +208,6 @@ inline void DistributionCallBinaryUnary(DataChunk &args, ExpressionState &state,
 
 template <typename DistributionType, typename CallParam, typename Func>
 inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, Vector &result, Func op) {
-
 	using DistParam1 = typename distribution_traits<DistributionType>::param1_t;
 	using ReturnType = decltype(op(std::declval<Vector &>(), std::declval<DistributionType &>()));
 
@@ -221,7 +217,6 @@ inline void DistributionCallUnaryUnary(DataChunk &args, ExpressionState &state, 
 	// Handle constant vectors optimization
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
 	    call_param_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-
 		if (ConstantVector::IsNull(dist_param1_vector) || ConstantVector::IsNull(call_param_vector)) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
 			ConstantVector::SetNull(result, true);
@@ -284,7 +279,6 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 	// Handle constant vectors optimization
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR &&
 	    dist_param2_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-
 		if (ConstantVector::IsNull(dist_param1_vector) || ConstantVector::IsNull(dist_param2_vector)) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
 			ConstantVector::SetNull(result, true);
@@ -333,7 +327,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
 		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
-			auto result_validity = FlatVector::Validity(result);
+			auto &result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
 				auto dist_param2_index = dist_param2_data.sel->get_index(i);
@@ -379,7 +373,7 @@ inline void DistributionCallBinaryNone(DataChunk &args, ExpressionState &state, 
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
 		if (!dist_param1_data.validity.AllValid() || !dist_param2_data.validity.AllValid()) {
-			auto result_validity = FlatVector::Validity(result);
+			auto &result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
 				auto dist_param2_index = dist_param2_data.sel->get_index(i);
@@ -436,7 +430,6 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 
 	// Handle constant vectors optimization
 	if (dist_param1_vector.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-
 		if (ConstantVector::IsNull(dist_param1_vector)) {
 			result.SetVectorType(VectorType::CONSTANT_VECTOR);
 			ConstantVector::SetNull(result, true);
@@ -482,7 +475,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto result_data = FlatVector::GetData<double>(result_data_children);
 
 		if (!dist_param1_data.validity.AllValid()) {
-			auto result_validity = FlatVector::Validity(result);
+			auto &result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
 				if (dist_param1_data.validity.RowIsValid(dist_param1_index)) {
@@ -520,7 +513,7 @@ inline void DistributionCallUnaryNone(DataChunk &args, ExpressionState &state, V
 		auto result_data = FlatVector::GetData<int64_t>(result_data_children);
 
 		if (!dist_param1_data.validity.AllValid()) {
-			auto result_validity = FlatVector::Validity(result);
+			auto &result_validity = FlatVector::Validity(result);
 			for (idx_t i = 0; i < args.size(); i++) {
 				auto dist_param1_index = dist_param1_data.sel->get_index(i);
 				if (dist_param1_data.validity.RowIsValid(dist_param1_index)) {
