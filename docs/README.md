@@ -26,3 +26,7 @@ Full documentation, including installation, usage, the function reference, and c
 INSTALL stochastic FROM community;
 LOAD stochastic;
 ```
+
+## October 7, 2026 compatibility fixes (v1.5 source)
+
+Integer-uniform analytics now describe the inclusive discrete support used by sampling. Mean, variance, standard deviation, and median return DOUBLE rather than truncated BIGINT values. Bounds keep their DOUBLE signature but must be finite BIGINT-valued integers with min <= max; equal bounds are supported. Quantiles use the exact binary DOUBLE probability without boundary snapping: for example, quantile(1,10,0.1) returns 2 because binary 0.1 is slightly above one tenth. Discrete hazard uses P(X=x)/P(X>=x), and standardized moments are undefined at zero variance. Pareto parameter labels now correctly read (scale, shape); positional behavior is unchanged. Community packages may lag these source fixes.

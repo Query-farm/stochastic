@@ -142,3 +142,36 @@ query I
 SELECT COUNT(DISTINCT dist_pareto_sample(1.0, 3.0)) > 1 FROM generate_series(1, 100);
 ----
 true
+
+
+# Parameter metadata agrees with the established (scale, shape) runtime order.
+query T
+SELECT DISTINCT parameters[1:2] FROM duckdb_functions()
+WHERE function_name LIKE 'dist_pareto_%';
+----
+[scale, shape]
+
+query RR
+SELECT dist_pareto_mean(1,3), dist_pareto_mean(2,3);
+----
+1.5	3.0
+
+statement error
+SELECT dist_pareto_sample(-1,3);
+----
+Scale parameter must be finite and > 0
+
+statement error
+SELECT dist_pareto_sample(1,0);
+----
+Shape parameter must be finite and > 0
+
+statement error
+SELECT dist_pareto_sample('nan'::DOUBLE,3);
+----
+Scale parameter must be finite and > 0
+
+statement error
+SELECT dist_pareto_sample(1,'inf'::DOUBLE);
+----
+Shape parameter must be finite and > 0
