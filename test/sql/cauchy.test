@@ -124,3 +124,9 @@ query I
 SELECT COUNT(DISTINCT dist_cauchy_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
 ----
 true
+
+# Test cauchy rejects a non-positive scale
+statement error
+SELECT dist_cauchy_pdf(0.0, 0.0, 1.0);
+----
+cauchy: Scale must be > 0
