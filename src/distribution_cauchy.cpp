@@ -18,16 +18,17 @@ struct distribution_traits_base {
 	using param2_t = double;
 	using return_t = double;
 
-	static constexpr std::array<const char *, 2> param_names = {"x", "y"};
+	static constexpr std::array<const char *, 2> param_names = {"location", "scale"};
 	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
 		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
 	}
 
-	static void ValidateParameters(param1_t x, param2_t y) {
-		if (y <= 0) {
-			throw InvalidInputException(string(DISTRIBUTION_SHORT_NAME) + ": Y must be > 0 was: " + std::to_string(y));
+	static void ValidateParameters(param1_t location, param2_t scale) {
+		if (scale <= 0) {
+			throw InvalidInputException(string(DISTRIBUTION_SHORT_NAME) +
+			                            ": Scale must be > 0 was: " + std::to_string(scale));
 		}
 	}
 };
