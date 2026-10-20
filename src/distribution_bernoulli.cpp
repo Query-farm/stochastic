@@ -17,7 +17,7 @@ struct distribution_traits_base {
 	using param1_t = double;
 	using return_t = double;
 
-	static constexpr std::array<const char *, 1> param_names = {"p"};
+	static constexpr std::array<const char *, 1> param_names = {"prob"};
 	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
 
 	static std::vector<LogicalType> LogicalParamTypes() {
