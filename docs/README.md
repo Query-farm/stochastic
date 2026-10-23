@@ -7,22 +7,15 @@
   </a>
 </p>
 
-# Stochastic Extension for DuckDB by [Query.Farm](https://query.farm)
+# Stochastic Extension for DuckDB
 
-[![DuckDB](https://img.shields.io/badge/DuckDB-community_extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://duckdb.org/community_extensions/extensions/stochastic.html)
-[![v1.5 build](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml/badge.svg?branch=v1.5)](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml?query=branch%3Av1.5)
+[![DuckDB](https://img.shields.io/badge/DuckDB-extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://query.farm/products/extensions/stochastic/)
+[![v2.0 build](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml/badge.svg?branch=v2.0)](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml?query=branch%3Av2.0)
 
-The **`stochastic`** extension, developed by **[Query.Farm](https://query.farm)**, adds comprehensive statistical distribution functions to DuckDB, enabling advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
+Sample probability distributions and compute their statistical properties in DuckDB.
 
 ## Documentation
 
 Full documentation, including installation, usage, the function reference, and cookbook examples, is available at:
 
-**[https://query.farm/products/extensions/stochastic](https://query.farm/products/extensions/stochastic)**
-
-## Installation
-
-```sql
-INSTALL stochastic FROM community;
-LOAD stochastic;
-```
+**[https://query.farm/products/extensions/stochastic/](https://query.farm/products/extensions/stochastic/)**
