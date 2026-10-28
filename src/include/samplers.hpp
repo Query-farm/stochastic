@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <random>
+#include "custom_random.hpp"
 
 namespace duckdb {
 
@@ -56,21 +57,12 @@ double NonCentralChiSquaredVariate(Generator &g, double degrees_of_freedom, doub
 	return ChiSquaredVariate(g, degrees_of_freedom + 2.0 * static_cast<double>(poisson(g)));
 }
 
-//! The Poisson mixture needs a Poisson sample with mean lambda / 2, which must stay well inside the DOUBLE
-//! integer range.
-inline void CheckNoncentralityForSampling(const char *dist, double noncentrality) {
-	if (!(noncentrality <= 1e15)) {
-		throw InvalidInputException("%s: noncentrality is too large to sample, must be <= 1e15", dist);
-	}
-}
-
 class NonCentralChiSquaredSampler {
 public:
 	using result_type = double;
 
 	NonCentralChiSquaredSampler(double degrees_of_freedom, double noncentrality)
 	    : degrees_of_freedom(degrees_of_freedom), noncentrality(noncentrality) {
-		CheckNoncentralityForSampling("non_central_chi_squared", noncentrality);
 	}
 
 	template <class Generator>
@@ -110,7 +102,6 @@ public:
 	using result_type = double;
 
 	NonCentralFSampler(double d1, double d2, double noncentrality) : d1(d1), d2(d2), noncentrality(noncentrality) {
-		CheckNoncentralityForSampling("non_central_f", noncentrality);
 	}
 
 	template <class Generator>
@@ -125,24 +116,24 @@ private:
 	double noncentrality;
 };
 
-//! X / (X + Y) with X ~ non-central chi2(2 alpha, lambda) and Y ~ chi2(2 beta).
+//! X / (X + Y) with X ~ non-central chi2(2 alpha, lambda) and Y ~ chi2(2 beta), i.e. a gamma ratio with shapes
+//! alpha + J, J ~ Poisson(lambda / 2), and beta.
 class NonCentralBetaSampler {
 public:
 	using result_type = double;
 
 	NonCentralBetaSampler(double alpha, double beta, double noncentrality)
 	    : alpha(alpha), beta(beta), noncentrality(noncentrality) {
-		CheckNoncentralityForSampling("non_central_beta", noncentrality);
 	}
 
 	template <class Generator>
 	double operator()(Generator &g) {
-		double x, y;
-		do {
-			x = NonCentralChiSquaredVariate(g, 2.0 * alpha, noncentrality);
-			y = ChiSquaredVariate(g, 2.0 * beta);
-		} while (x == 0.0 && y == 0.0);
-		return x / (x + y);
+		double shape = alpha;
+		if (noncentrality > 0) {
+			std::poisson_distribution<int64_t> poisson(noncentrality / 2.0);
+			shape += static_cast<double>(poisson(g));
+		}
+		return custom_random::gamma_ratio_variate(g, shape, beta);
 	}
 
 private:
@@ -210,11 +201,8 @@ public:
 
 	template <class Generator>
 	double operator()(Generator &g) {
-		double y;
-		do {
-			y = gamma(g);
-		} while (y == 0.0);
-		return scale / y;
+		// A gamma variate that underflows to 0 (tiny shape) gives +inf
+		return scale / gamma(g);
 	}
 
 private:
@@ -233,11 +221,7 @@ public:
 
 	template <class Generator>
 	double operator()(Generator &g) {
-		double y;
-		do {
-			y = ChiSquaredVariate(g, degrees_of_freedom);
-		} while (y == 0.0);
-		return degrees_of_freedom * scale / y;
+		return degrees_of_freedom * scale / ChiSquaredVariate(g, degrees_of_freedom);
 	}
 
 private:

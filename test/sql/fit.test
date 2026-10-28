@@ -750,3 +750,15 @@ SELECT dist_gamma_ks_test(x, f.shape, f.scale).p_value > 0.05
 FROM gamma_data, (SELECT dist_gamma_fit(x) AS f FROM gamma_data);
 ----
 true
+
+
+# Fits that overflow at extreme magnitudes report an error rather than NaN
+statement error
+SELECT dist_rayleigh_fit(x) FROM (VALUES (1e300), (1.5e300)) t(x);
+----
+rayleigh: the fit is not finite
+
+statement error
+SELECT dist_logistic_fit(x) FROM (VALUES (1e-300::DOUBLE), (2e-300::DOUBLE), (5e-324::DOUBLE)) t(x);
+----
+logistic: the fit is not finite

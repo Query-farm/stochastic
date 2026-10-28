@@ -1,0 +1,158 @@
+# name: test/sql/edge_cases.test
+# description: extreme arguments found by fuzzing: no hangs, no internal errors and no invalid results
+# group: [sql]
+
+require stochastic
+
+# Discrete quantiles are found by searching the CDF, so large and saturated quantiles finish
+query I
+SELECT dist_geometric_quantile(1e-10, 0.9999999999999999);
+----
+363313354597
+
+query II
+SELECT dist_binomial_quantile_complement(1000000000, 0.5, 0.0), dist_binomial_quantile_complement(1000000000, 1e-300, 1e-300);
+----
+1000000000	1
+
+statement error
+SELECT dist_poisson_quantile(1e300, 0.95);
+----
+poisson: the quantile is above 2^53, where DOUBLE cannot represent every integer
+
+statement error
+SELECT dist_binomial_quantile(4611686018427387904, 0.5, 0.95);
+----
+binomial: the quantile is above 2^53
+
+statement error
+SELECT dist_negative_binomial_median(9223372036854775807, 1e-10);
+----
+negative_binomial: the quantile is above 2^53
+
+query IIIII
+SELECT dist_poisson_median(4.5), dist_binomial_median(10, 0.5), dist_geometric_median(0.3), dist_poisson_quantile(4.5, 0.0), dist_binomial_quantile(10, 0.5, 1.0);
+----
+4.0	5.0	1.0	0	10
+
+statement error
+SELECT dist_poisson_quantile(4.5, 1.5);
+----
+poisson: Probability argument is 1.5, but must be >= 0 and <= 1
+
+# The quantile is the smallest x with CDF(x) >= p
+query I
+SELECT bool_and(dist_poisson_cdf(4.5, q) >= p AND (q = 0 OR dist_poisson_cdf(4.5, greatest(q - 1, 0)) < p))
+FROM (SELECT p, dist_poisson_quantile(4.5, p)::DOUBLE AS q FROM (SELECT unnest(range(1, 1000)) / 1000 AS p));
+----
+true
+
+# Kolmogorov-Smirnov quantiles invert the CDF for any sample size, and the far tail does not hang
+query I
+SELECT abs(dist_kolmogorov_smirnov_cdf(0.5, dist_kolmogorov_smirnov_quantile(0.5, 0.5)) - 0.5) < 1e-12;
+----
+true
+
+query I
+SELECT bool_and(abs(dist_kolmogorov_smirnov_cdf_complement(n, dist_kolmogorov_smirnov_quantile_complement(n, p)) - p) < 1e-10)
+FROM (SELECT unnest([1.0, 2.5, 10.0, 1000.0]) AS n), (SELECT unnest([0.001, 0.05, 0.5, 0.95]) AS p);
+----
+true
+
+query III
+SELECT dist_kolmogorov_smirnov_quantile(1.0, 1.0), dist_kolmogorov_smirnov_median(0.5) > 0, dist_kolmogorov_smirnov_pdf(10.0, 1e300);
+----
+inf	true	0.0
+
+query I
+SELECT abs(avg(dist_kolmogorov_smirnov_sample(2.5)) - dist_kolmogorov_smirnov_mean(2.5)) < 0.01 FROM range(100000);
+----
+true
+
+# Samplers do not loop when gamma variates underflow
+query I
+SELECT dist_inverse_gamma_sample(1e-300, 2.0);
+----
+inf
+
+query I
+SELECT bool_and(x = 0 OR x = 1) FROM (SELECT dist_beta_sample(1e-300, 1e-300) AS x FROM range(1000));
+----
+true
+
+query II
+SELECT list_sum(dist_dirichlet_sample([5e-324, 5e-324, 5e-324])), dist_dirichlet_variance([1e-300, 1e-300]);
+----
+1.0	[0.25, 0.25]
+
+query III
+SELECT abs(avg(dist_beta_sample(0.5, 0.5)) - 0.5) < 0.01, abs(avg(dist_non_central_beta_sample(0.3, 0.6, 2.0)) - dist_non_central_beta_mean(0.3, 0.6, 2.0)) < 0.01, abs(avg(dist_dirichlet_sample([0.2, 0.5])[1]) - 0.2 / 0.7) < 0.01
+FROM range(200000);
+----
+true	true	true
+
+statement error
+SELECT dist_dirichlet_mean([1e308, 1e308]);
+----
+dirichlet: the sum of alpha must be finite
+
+# Logarithms of probabilities are never above 0
+query IIII
+SELECT dist_logistic_log_cdf(0.0, 1.0, 1e15), dist_logistic_log_cdf(0.0, 1.0, -1e15), dist_logistic_log_cdf(0.0, 1.0, 'inf'), dist_logistic_log_cdf_complement(0.0, 1.0, 'inf');
+----
+0.0	-1000000000000000.0	0.0	-inf
+
+query I
+SELECT abs(dist_logistic_log_cdf(1.0, 2.0, 0.3) - ln(dist_logistic_cdf(1.0, 2.0, 0.3))) < 1e-15;
+----
+true
+
+# Probabilities stay in [0, 1]
+query I
+SELECT abs(dist_non_central_f_cdf_complement(5.0, 10.0, 0.0, 1.5) - dist_fisher_f_cdf_complement(5.0, 10.0, 1.5)) < 1e-15;
+----
+true
+
+query II
+SELECT dist_binomial_pmf(10, 1e-300, 0.0), dist_triangular_variance(0.9999999999999999, 0.9999999999999999, 1.0);
+----
+1.0	0.0
+
+# Numerical failures are reported as errors that name the distribution
+statement error
+SELECT dist_rayleigh_pdf(5e-324, 0.5);
+----
+rayleigh: the result is not a number for these arguments
+
+statement error
+SELECT dist_fisher_f_quantile_complement(5.0, 10.0, 1e-300);
+----
+fisher_f: no solution was found; the closest value was
+
+# Boost errors raised outside its policy still name the distribution
+statement error
+SELECT dist_inverse_gaussian_median(5e-324, 1e300);
+----
+inverse_gaussian: Random variate x is nan, but must be finite
+
+# Noncentrality is limited to where Boost's series converge in reasonable time
+statement error
+SELECT dist_non_central_beta_mode(2.0, 3.0, 1e15);
+----
+non_central_beta: noncentrality must be <= 100000000, got 1e+15
+
+statement error
+SELECT dist_non_central_t_mode(5.0, -1e5);
+----
+non_central_t: absolute value of noncentrality must be <= 1000, got 100000
+
+query I
+SELECT dist_non_central_chi_squared_mode(5.0, 1e8) > 1e8;
+----
+true
+
+# Boost's search returns about half the true mode here
+query I
+SELECT abs(dist_non_central_chi_squared_mode(5.0, 1e6) - 1000002.0) < 0.01;
+----
+true

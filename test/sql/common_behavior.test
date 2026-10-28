@@ -294,7 +294,7 @@ non_central_f: noncentrality must be >= 0, got -1
 statement error
 SELECT dist_non_central_chi_squared_sample(4.0, 1e300);
 ----
-non_central_chi_squared: noncentrality is too large to sample
+non_central_chi_squared: noncentrality must be <= 100000000, got 1e+300
 
 query I
 SELECT dist_hypergeometric_support(10, 5, 50);

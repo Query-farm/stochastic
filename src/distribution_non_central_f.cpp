@@ -19,6 +19,18 @@ struct NonCentralFSpec : DistributionSpecBase {
 		RequirePositive(name, "d1", d1);
 		RequirePositive(name, "d2", d2);
 		RequireNonNegative(name, "noncentrality", noncentrality);
+		// Boost's series take too long or do not converge beyond this
+		RequireAtMost(name, "noncentrality", noncentrality, MAX_NONCENTRALITY);
+	}
+
+	//! Boost's complementary CDF is wrong (negative) for noncentrality 0. The smallest normal DOUBLE gives the
+	//! central F distribution to rounding (a subnormal one makes Boost's series fail).
+	static params DistributionParams(const params &values) {
+		auto adjusted = values;
+		if (std::get<2>(adjusted) == 0) {
+			std::get<2>(adjusted) = std::numeric_limits<double>::min();
+		}
+		return adjusted;
 	}
 };
 

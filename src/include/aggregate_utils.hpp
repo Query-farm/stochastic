@@ -65,6 +65,10 @@ struct StructAggregate {
 			           std::make_index_sequence<std::tuple_size<Inputs>::value> {});
 		} catch (MathError &error) {
 			throw InvalidInputException("%s: %s", OP::name, error.message);
+		} catch (Exception &) {
+			throw;
+		} catch (std::exception &error) {
+			throw InvalidInputException("%s: %s", OP::name, CleanBoostMessage(error.what()));
 		}
 	}
 
@@ -94,6 +98,10 @@ struct StructAggregate {
 			}
 		} catch (MathError &error) {
 			throw InvalidInputException("%s: %s", OP::name, error.message);
+		} catch (Exception &) {
+			throw;
+		} catch (std::exception &error) {
+			throw InvalidInputException("%s: %s", OP::name, CleanBoostMessage(error.what()));
 		}
 	}
 

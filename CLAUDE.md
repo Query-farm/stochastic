@@ -62,6 +62,10 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 - Properties are wrapped in `UndefinedAsNull`, so undefined moments (e.g. the Cauchy mean) return NULL.
 - `DiscreteQuantile` returns the smallest integer x with CDF(x) >= p.
 - `CheckSampleRange` rejects integer sampler parameters whose samples could exceed 2^53.
+- `DiscreteQuantile` finds discrete quantiles (and medians) by galloping and bisecting on the CDF, since Boost's integer search does not finish for large quantiles; quantiles above 2^53 are rejected.
+- A spec can override `DistributionParams`, `Pdf`, `LogPdf`, `LogCdf`, `LogCdfComplement`, `Hazard`, `Quantile`, `QuantileComplement`, `Mode` or `Median` from `DistributionSpecBase` where Boost is wrong or does not terminate (Kolmogorov-Smirnov, logistic, non-central chi-squared and F).
+- Results that are NaN are reported as errors, CDFs and PMFs are checked to lie in [0, 1], and Boost exceptions raised outside our policy are turned into `InvalidInputException` naming the distribution.
+- The non-central chi-squared, F and beta accept noncentrality up to `MAX_NONCENTRALITY` (1e8) and the non-central t up to 1000 in absolute value; beyond that Boost's series take too long or diverge.
 
 **Boost.Math Policy (`src/include/stochastic_policy.hpp`)**: Domain, pole, evaluation and rounding errors throw `MathError`, which the executors turn into `InvalidInputException` prefixed with the distribution name. Overflow returns ±inf. `promote_double<false>` keeps calculations in DOUBLE (long double is software emulated and ~100x slower on Linux aarch64). `StochasticUndefinedPolicy` adds `assert_undefined<false>`, which turns always-undefined properties (Cauchy moments, non-central beta skewness and kurtosis) into runtime errors instead of compile errors; it is kept off the other distributions because it breaks linking of the non-central t with Apple clang.
 
@@ -80,6 +84,7 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 3. Add `X(<name>)` to `STOCHASTIC_DISTRIBUTIONS` in `src/stochastic_extension.cpp`
 4. Create `test/sql/<name>.test` with reference values from an independent implementation (e.g. SciPy) and sample moment checks
 5. Parameter names must not be `x`, `p` or `n` (they collide with call arguments; see `test/sql/parameter_names.test`)
+6. Run the fuzzer described in `test/fuzz/README.md` over the new functions
 
 ### Testing
 

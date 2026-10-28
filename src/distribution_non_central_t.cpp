@@ -22,8 +22,10 @@ struct NonCentralTSpec : DistributionSpecBase {
 	static constexpr const char *example_params = "10.0, 1.0";
 	static constexpr const char *example_x = "1.5";
 
-	static void Validate(double degrees_of_freedom, double) {
+	static void Validate(double degrees_of_freedom, double noncentrality) {
 		RequirePositive(name, "degrees_of_freedom", degrees_of_freedom);
+		// Boost's series and searches take too long or do not converge beyond this
+		RequireAtMost(name, "absolute value of noncentrality", std::abs(noncentrality), 1000.0);
 	}
 };
 

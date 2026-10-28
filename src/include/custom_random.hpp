@@ -4,25 +4,46 @@
 
 namespace custom_random {
 
+//! The logarithm of a Gamma(shape, 1) variate, using Gamma(shape) = Gamma(shape + 1) * U^(1 / shape) so that it
+//! does not underflow for small shapes.
+template <typename T, typename Generator>
+T log_gamma_variate(Generator &g, T shape) {
+	std::gamma_distribution<T> gamma(shape + T(1), T(1));
+	std::uniform_real_distribution<T> uniform(T(0), T(1));
+	T u;
+	do {
+		u = uniform(g);
+	} while (u == T(0));
+	return std::log(gamma(g)) + std::log(u) / shape;
+}
+
+//! X / (X + Y) for independent gamma variates with the given shapes, computed from their logarithms.
+template <typename T, typename Generator>
+T gamma_ratio_variate(Generator &g, T shape_x, T shape_y) {
+	return T(1) / (T(1) + std::exp(log_gamma_variate(g, shape_y) - log_gamma_variate(g, shape_x)));
+}
+
 template <typename T = double>
 class beta_distribution {
 public:
 	using result_type = T;
 
-	beta_distribution(T alpha, T beta) : gamma_a_(alpha, T(1)), gamma_b_(beta, T(1)) {
+	beta_distribution(T alpha, T beta) : alpha_(alpha), beta_(beta), gamma_a_(alpha, T(1)), gamma_b_(beta, T(1)) {
 	}
 
 	template <typename Generator>
 	result_type operator()(Generator &g) {
-		T x, y;
-		do {
-			x = gamma_a_(g);
-			y = gamma_b_(g);
-		} while (x == T(0) && y == T(0));
-		return x / (x + y);
+		// Gamma variates with shape below 1 can underflow to 0, so use their logarithms
+		if (alpha_ < T(1) || beta_ < T(1)) {
+			return gamma_ratio_variate(g, alpha_, beta_);
+		}
+		const T x = gamma_a_(g);
+		return x / (x + gamma_b_(g));
 	}
 
 private:
+	T alpha_;
+	T beta_;
 	std::gamma_distribution<T> gamma_a_;
 	std::gamma_distribution<T> gamma_b_;
 };

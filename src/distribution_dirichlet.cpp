@@ -12,8 +12,13 @@ void ReadAlpha(const ListIterator<double>::ValueEntry &entry, std::vector<double
 		throw InvalidInputException("%s: alpha must have at least 2 elements, got %s", DIRICHLET,
 		                            std::to_string(alpha.size()));
 	}
+	double total = 0;
 	for (auto a : alpha) {
 		RequirePositive(DIRICHLET, "alpha", a);
+		total += a;
+	}
+	if (!std::isfinite(total)) {
+		throw InvalidInputException("%s: the sum of alpha must be finite", DIRICHLET);
 	}
 }
 
@@ -53,7 +58,9 @@ std::vector<double> DirichletMoments(const std::vector<double> &alpha, bool vari
 	}
 	std::vector<double> result;
 	for (auto a : alpha) {
-		result.push_back(variance ? a * (a0 - a) / (a0 * a0 * (a0 + 1)) : a / a0);
+		// Written as ratios so that tiny alphas do not underflow to 0 / 0
+		const double share = a / a0;
+		result.push_back(variance ? share * ((a0 - a) / a0) / (a0 + 1) : share);
 	}
 	return result;
 }
@@ -108,17 +115,36 @@ void Load_dirichlet_distribution(ExtensionLoader &loader) {
 	    [](DataChunk &args, ExpressionState &state, Vector &result) {
 		    RngAdapter rng(RandomEngine::Get(state.GetContext()));
 		    ExecuteAlpha<std::vector<double>>(args, result, [&rng](const std::vector<double> &alpha, idx_t) {
-			    // Normalized independent Gamma(alpha_i, 1) variates; redraw in the (vanishingly rare) all-zero case
+			    // Normalized independent Gamma(alpha_i, 1) variates, drawn in log space as
+			    // log Gamma(alpha + 1) + log(U) / alpha so that small alphas cannot underflow to 0
 			    std::vector<double> sample(alpha.size());
-			    double total;
-			    do {
-				    total = 0;
+			    double max_log = -std::numeric_limits<double>::infinity();
+			    for (idx_t i = 0; i < alpha.size(); i++) {
+				    std::gamma_distribution<double> gamma(alpha[i] + 1, 1.0);
+				    sample[i] = std::log(gamma(rng)) + std::log(OpenUniform(rng)) / alpha[i];
+				    max_log = std::max(max_log, sample[i]);
+			    }
+			    if (!std::isfinite(max_log)) {
+				    // Every log(U) / alpha overflowed (subnormal alphas): the sample is a vertex of the simplex,
+				    // the component with the largest log(U) / alpha, i.e. the smallest log(-log(U)) - log(alpha)
+				    idx_t best = 0;
+				    double best_key = std::numeric_limits<double>::infinity();
 				    for (idx_t i = 0; i < alpha.size(); i++) {
-					    std::gamma_distribution<double> gamma(alpha[i], 1.0);
-					    sample[i] = gamma(rng);
-					    total += sample[i];
+					    const double key = std::log(-std::log(OpenUniform(rng))) - std::log(alpha[i]);
+					    if (key < best_key) {
+						    best_key = key;
+						    best = i;
+					    }
 				    }
-			    } while (total == 0);
+				    std::fill(sample.begin(), sample.end(), 0.0);
+				    sample[best] = 1;
+				    return sample;
+			    }
+			    double total = 0;
+			    for (auto &value : sample) {
+				    value = std::exp(value - max_log);
+				    total += value;
+			    }
 			    for (auto &value : sample) {
 				    value /= total;
 			    }

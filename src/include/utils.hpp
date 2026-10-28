@@ -53,6 +53,52 @@ struct DistributionSpecBase {
 	static constexpr const char *example_p = "0.95";
 	//! Reject parameters whose integer samples could exceed 2^53 (requires boost_type mean and stddev)
 	static constexpr bool check_sample_range = true;
+
+	//! The arguments used to construct boost_type; a spec can adjust them to avoid a Boost defect
+	template <class Params>
+	static const Params &DistributionParams(const Params &params) {
+		return params;
+	}
+
+	//! Functions a spec can replace where Boost's are unreliable
+	template <class Dist>
+	static double LogCdf(const Dist &dist, double x) {
+		// Boost's logcdf returns the CDF rather than its logarithm at an infinite x for some distributions
+		return std::isinf(x) ? std::log(boost::math::cdf(dist, x)) : boost::math::logcdf(dist, x);
+	}
+	template <class Dist>
+	static double LogCdfComplement(const Dist &dist, double x) {
+		return std::isinf(x) ? std::log(boost::math::cdf(boost::math::complement(dist, x)))
+		                     : boost::math::logcdf(boost::math::complement(dist, x));
+	}
+	template <class Dist>
+	static double Mode(const Dist &dist) {
+		return boost::math::mode(dist);
+	}
+	template <class Dist>
+	static double Median(const Dist &dist) {
+		return boost::math::median(dist);
+	}
+	template <class Dist>
+	static double Pdf(const Dist &dist, double x) {
+		return boost::math::pdf(dist, x);
+	}
+	template <class Dist>
+	static double LogPdf(const Dist &dist, double x) {
+		return boost::math::logpdf(dist, x);
+	}
+	template <class Dist>
+	static double Hazard(const Dist &dist, double x) {
+		return boost::math::hazard(dist, x);
+	}
+	template <class Dist>
+	static double Quantile(const Dist &dist, double p) {
+		return boost::math::quantile(dist, p);
+	}
+	template <class Dist>
+	static double QuantileComplement(const Dist &dist, double q) {
+		return boost::math::quantile(boost::math::complement(dist, q));
+	}
 };
 
 template <class Spec>
@@ -61,6 +107,8 @@ constexpr idx_t SpecParamCount() {
 }
 
 constexpr idx_t MAX_SAMPLES_PER_ROW = 10000000;
+//! Largest noncentrality accepted by the non-central chi-squared, F and beta distributions
+constexpr double MAX_NONCENTRALITY = 1e8;
 
 //===--------------------------------------------------------------------===//
 // Parameter validation helpers
@@ -97,6 +145,48 @@ void RequireNonNegative(const char *dist, const char *param, T value) {
 	}
 }
 
+template <class T>
+void RequireAtMost(const char *dist, const char *param, T value, T limit) {
+	if (!(value <= limit)) {
+		throw InvalidInputException("%s: %s must be <= %s, got %s", dist, param, FormatParameter(limit),
+		                            FormatParameter(value));
+	}
+}
+
+//! Rejects a probability argument (p of a quantile function) outside [0, 1], as Boost does.
+inline void CheckProbabilityArgument(double p) {
+	if (!(p >= 0 && p <= 1)) {
+		throw MathError(MathError::Kind::INVALID_ARGUMENT,
+		                FormatMathErrorMessage("Probability argument is %1%, but must be >= 0 and <= 1", p));
+	}
+}
+
+//! Rounding can push a computed probability slightly outside [0, 1]; larger excursions are numerical failures.
+inline double CheckedProbability(double value) {
+	if (value >= 0 && value <= 1) {
+		return value;
+	}
+	if (value >= -1e-9 && value < 0) {
+		return 0;
+	}
+	if (value > 1 && value <= 1 + 1e-9) {
+		return 1;
+	}
+	throw MathError(MathError::Kind::EVALUATION, "the result is not a valid probability for these arguments");
+}
+
+//! The logarithm of a probability, which must not be above 0.
+inline double CheckedLogProbability(double value) {
+	if (value > 0 && value <= 1e-9) {
+		return 0;
+	}
+	if (value > 0) {
+		throw MathError(MathError::Kind::EVALUATION, "the result is not a valid probability for these arguments");
+	}
+	// Turn -0 into 0
+	return value + 0.0;
+}
+
 inline void RequireProbability(const char *dist, const char *param, double value) {
 	RequireFinite(dist, param, value);
 	if (!(value >= 0 && value <= 1)) {
@@ -118,7 +208,7 @@ void ValidateParams(const typename Spec::params &params) {
 template <class Spec>
 typename Spec::boost_type MakeDistribution(const typename Spec::params &params) {
 	ValidateParams<Spec>(params);
-	return std::make_from_tuple<typename Spec::boost_type>(params);
+	return std::make_from_tuple<typename Spec::boost_type>(Spec::DistributionParams(params));
 }
 
 //! Integer samplers compute in DOUBLE and then convert, so reject parameters whose samples could leave the
@@ -285,6 +375,31 @@ struct ArgIterators<std::tuple<Ts...>> {
 	std::tuple<VectorIterator<Ts>...> iterators;
 };
 
+//! Whether a result is or contains NaN, which signals a numerical failure since the inputs are finite.
+template <class T>
+bool HasNaN(const T &) {
+	return false;
+}
+inline bool HasNaN(double value) {
+	return std::isnan(value);
+}
+inline bool HasNaN(const std::optional<double> &value) {
+	return value && std::isnan(*value);
+}
+template <class A, class B>
+bool HasNaN(const std::pair<A, B> &value) {
+	return HasNaN(value.first) || HasNaN(value.second);
+}
+template <class T>
+bool HasNaN(const std::vector<T> &values) {
+	for (const auto &value : values) {
+		if (HasNaN(value)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 template <class Spec, class Result, bool VOLATILE, class CallArgs, class Make, class Op>
 void ExecuteDistribution(DataChunk &args, Vector &result, Make &&make, Op &&op) {
 	using Params = typename Spec::params;
@@ -319,7 +434,11 @@ void ExecuteDistribution(DataChunk &args, Vector &result, Make &&make, Op &&op) 
 				continue;
 			}
 			auto invoke = [&](Object &object) {
-				output.Write(std::apply([&](auto &&...call_args) { return op(object, call_args...); }, calls.Get(row)));
+				auto value = std::apply([&](auto &&...call_args) { return op(object, call_args...); }, calls.Get(row));
+				if (HasNaN(value)) {
+					throw MathError(MathError::Kind::EVALUATION, "the result is not a number for these arguments");
+				}
+				output.Write(std::move(value));
 			};
 			if (shared_object) {
 				invoke(*shared_object);
@@ -330,6 +449,11 @@ void ExecuteDistribution(DataChunk &args, Vector &result, Make &&make, Op &&op) 
 		}
 	} catch (MathError &error) {
 		throw InvalidInputException("%s: %s", Spec::name, error.message);
+	} catch (Exception &) {
+		throw;
+	} catch (std::exception &error) {
+		// Boost raises some errors with its default policy (e.g. lgamma overflow) instead of through ours
+		throw InvalidInputException("%s: %s", Spec::name, CleanBoostMessage(error.what()));
 	}
 }
 
@@ -544,25 +668,70 @@ void RegisterKolmogorovSmirnovTest(ExtensionLoader &loader) {
 	     "SELECT " + name + "(x, " + Spec::example_params + ") FROM t", "hypothesis_test", Spec::name});
 }
 
-//! For discrete distributions, returns the smallest integer x with P(X <= x) >= p (or P(X > x) <= p for the
-//! complement). Boost rounds most discrete quantiles this way already but returns a continuous value for some
-//! (e.g. geometric).
+//! The quantile of a discrete distribution: the smallest integer x with P(X <= x) >= p, or with P(X > x) <= p
+//! for the complement. Boost's own search steps through integers and does not finish for large quantiles, so
+//! the CDF is searched directly: galloping out from the mean, then bisecting. Quantiles beyond 2^53, where
+//! DOUBLE no longer represents every integer, are rejected.
 template <class Spec, class Dist>
-double DiscreteQuantile(const Dist &dist, double p, bool complement, double quantile) {
-	if (!Spec::discrete || !std::isfinite(quantile)) {
-		return quantile;
+double DiscreteQuantile(const Dist &dist, double p, bool complement) {
+	CheckProbabilityArgument(p);
+	auto satisfied = [&](double x) {
+		return complement ? boost::math::cdf(boost::math::complement(dist, x)) <= p : boost::math::cdf(dist, x) >= p;
+	};
+	const auto support = boost::math::support(dist);
+	const double support_low = static_cast<double>(support.first);
+	// Boost gives an unbounded support as the largest DOUBLE
+	const double support_high = static_cast<double>(support.second) >= std::numeric_limits<double>::max()
+	                                ? std::numeric_limits<double>::infinity()
+	                                : static_cast<double>(support.second);
+	if (p == (complement ? 0 : 1)) {
+		return support_high;
 	}
-	double x = std::ceil(quantile);
-	const double lower = boost::math::support(dist).first;
-	while (x > lower) {
-		const double previous =
-		    complement ? boost::math::cdf(boost::math::complement(dist, x - 1)) : boost::math::cdf(dist, x - 1);
-		if (complement ? previous > p : previous < p) {
-			break;
+	const double limit = std::ldexp(1.0, 53);
+	double low = support_low;
+	double high = std::min(support_high, limit);
+	if (satisfied(low)) {
+		return low;
+	}
+	if (!satisfied(high)) {
+		if (high == support_high) {
+			return high;
 		}
-		x -= 1;
+		throw InvalidInputException("%s: the quantile is above 2^53, where DOUBLE cannot represent every integer",
+		                            Spec::name);
 	}
-	return x;
+	// Invariant: !satisfied(low) and satisfied(high)
+	double guess = low;
+	try {
+		guess = std::floor(boost::math::mean(dist));
+	} catch (MathError &) {
+	}
+	if (guess > low && guess < high) {
+		const bool guess_satisfied = satisfied(guess);
+		(guess_satisfied ? high : low) = guess;
+		for (double step = 1;; step *= 2) {
+			const double next = guess_satisfied ? high - step : low + step;
+			if (next <= low || next >= high) {
+				break;
+			}
+			if (satisfied(next)) {
+				high = next;
+				if (!guess_satisfied) {
+					break;
+				}
+			} else {
+				low = next;
+				if (guess_satisfied) {
+					break;
+				}
+			}
+		}
+	}
+	while (high - low > 1) {
+		const double mid = std::floor(low + (high - low) / 2);
+		(satisfied(mid) ? high : low) = mid;
+	}
+	return high;
 }
 
 //! Converts a quantile to the function's result type. An infinite quantile (e.g. at p = 1 for an unbounded
@@ -598,10 +767,10 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	}
 
 	auto pdf = [](const auto &dist, double x) -> double {
-		return boost::math::pdf(dist, x);
+		return Spec::discrete ? CheckedProbability(Spec::Pdf(dist, x)) : Spec::Pdf(dist, x);
 	};
 	auto log_pdf = [](const auto &dist, double x) -> double {
-		return boost::math::logpdf(dist, x);
+		return Spec::discrete ? CheckedLogProbability(Spec::LogPdf(dist, x)) : Spec::LogPdf(dist, x);
 	};
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "pdf", pdf, {"Computes the " + density + " of the " + text + " at x.", with_x, "density"}, x_param);
@@ -624,24 +793,28 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	}
 
 	RegisterEvaluation<Spec, double, X>(
-	    loader, "cdf", [](const auto &dist, double x) -> double { return boost::math::cdf(dist, x); },
+	    loader, "cdf",
+	    [](const auto &dist, double x) -> double { return CheckedProbability(boost::math::cdf(dist, x)); },
 	    {"Computes the cumulative distribution function (CDF) of the " + text + ", P(X <= x).", with_x, "cumulative"},
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "cdf_complement",
-	    [](const auto &dist, double x) -> double { return boost::math::cdf(boost::math::complement(dist, x)); },
+	    [](const auto &dist, double x) -> double {
+		    return CheckedProbability(boost::math::cdf(boost::math::complement(dist, x)));
+	    },
 	    {"Computes the complementary cumulative distribution function (survival function) of the " + text +
 	         ", P(X > x).",
 	     with_x, "cumulative"},
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
-	    loader, "log_cdf", [](const auto &dist, double x) -> double { return boost::math::logcdf(dist, x); },
+	    loader, "log_cdf",
+	    [](const auto &dist, double x) -> double { return CheckedLogProbability(Spec::LogCdf(dist, x)); },
 	    {"Computes the natural logarithm of the cumulative distribution function (CDF) of the " + text + ".", with_x,
 	     "cumulative"},
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "log_cdf_complement",
-	    [](const auto &dist, double x) -> double { return boost::math::logcdf(boost::math::complement(dist, x)); },
+	    [](const auto &dist, double x) -> double { return CheckedLogProbability(Spec::LogCdfComplement(dist, x)); },
 	    {"Computes the natural logarithm of the survival function of the " + text + ", log P(X > x).", with_x,
 	     "cumulative"},
 	    x_param);
@@ -649,8 +822,11 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	RegisterEvaluation<Spec, quantile_t, X>(
 	    loader, "quantile",
 	    [](const auto &dist, double p) -> quantile_t {
-		    return ConvertQuantile<Spec, quantile_t>(
-		        DiscreteQuantile<Spec>(dist, p, false, boost::math::quantile(dist, p)));
+		    if constexpr (Spec::discrete) {
+			    return ConvertQuantile<Spec, quantile_t>(DiscreteQuantile<Spec>(dist, p, false));
+		    } else {
+			    return ConvertQuantile<Spec, quantile_t>(Spec::Quantile(dist, p));
+		    }
 	    },
 	    {"Computes the quantile function (inverse CDF) of the " + text +
 	         ". Returns the smallest x such that P(X <= x) >= p.",
@@ -659,8 +835,11 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	RegisterEvaluation<Spec, quantile_t, X>(
 	    loader, "quantile_complement",
 	    [](const auto &dist, double p) -> quantile_t {
-		    return ConvertQuantile<Spec, quantile_t>(
-		        DiscreteQuantile<Spec>(dist, p, true, boost::math::quantile(boost::math::complement(dist, p))));
+		    if constexpr (Spec::discrete) {
+			    return ConvertQuantile<Spec, quantile_t>(DiscreteQuantile<Spec>(dist, p, true));
+		    } else {
+			    return ConvertQuantile<Spec, quantile_t>(Spec::QuantileComplement(dist, p));
+		    }
 	    },
 	    {"Computes the complementary quantile function of the " + text +
 	         ". Returns x such that P(X > x) = p, useful for upper tail quantiles.",
@@ -668,10 +847,12 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	    p_param);
 
 	RegisterEvaluation<Spec, double, X>(
-	    loader, "hazard", [](const auto &dist, double x) -> double { return boost::math::hazard(dist, x); },
+	    loader, "hazard", [](const auto &dist, double x) -> double { return Spec::Hazard(dist, x); },
 	    {"Computes the hazard function of the " + text + " at x.", with_x, "hazard"}, x_param);
 	RegisterEvaluation<Spec, double, X>(
-	    loader, "chf", [](const auto &dist, double x) -> double { return boost::math::chf(dist, x); },
+	    loader, "chf",
+	    // -log(survival function), which rounding can make slightly negative
+	    [](const auto &dist, double x) -> double { return 0.0 - CheckedLogProbability(-boost::math::chf(dist, x)); },
 	    {"Computes the cumulative hazard function of the " + text + " at x.", with_x, "hazard"}, x_param);
 
 	using Property = std::optional<double>;
@@ -684,14 +865,18 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	    UndefinedAsNull([](const auto &dist) -> double { return boost::math::standard_deviation(dist); }),
 	    {"Returns the standard deviation of the " + text + "." + undefined, params, "property"});
 	RegisterEvaluation<Spec, Property>(
-	    loader, "variance", UndefinedAsNull([](const auto &dist) -> double { return boost::math::variance(dist); }),
+	    loader, "variance",
+	    // Rounding can make the variance of a nearly degenerate distribution (e.g. triangular) slightly negative
+	    UndefinedAsNull([](const auto &dist) -> double { return std::max(0.0, boost::math::variance(dist)); }),
 	    {"Returns the variance of the " + text + "." + undefined, params, "property"});
 	RegisterEvaluation<Spec, Property>(
-	    loader, "mode", UndefinedAsNull([](const auto &dist) -> double { return boost::math::mode(dist); }),
+	    loader, "mode", UndefinedAsNull([](const auto &dist) -> double { return Spec::Mode(dist); }),
 	    {"Returns the mode (most likely value) of the " + text + "." + undefined, params, "property"});
-	RegisterEvaluation<Spec, Property>(
-	    loader, "median", UndefinedAsNull([](const auto &dist) -> double { return boost::math::median(dist); }),
-	    {"Returns the median of the " + text + "." + undefined, params, "property"});
+	RegisterEvaluation<Spec, Property>(loader, "median", UndefinedAsNull([](const auto &dist) -> double {
+		                                   return Spec::discrete ? DiscreteQuantile<Spec>(dist, 0.5, false)
+		                                                         : Spec::Median(dist);
+	                                   }),
+	                                   {"Returns the median of the " + text + "." + undefined, params, "property"});
 	RegisterEvaluation<Spec, Property>(
 	    loader, "skewness", UndefinedAsNull([](const auto &dist) -> double { return boost::math::skewness(dist); }),
 	    {"Returns the skewness of the " + text + "." + undefined, params, "property"});

@@ -19,6 +19,8 @@ struct NonCentralBetaSpec : DistributionSpecBase {
 		RequirePositive(name, "alpha", alpha);
 		RequirePositive(name, "beta", beta);
 		RequireNonNegative(name, "noncentrality", noncentrality);
+		// Boost's series take too long or do not converge beyond this
+		RequireAtMost(name, "noncentrality", noncentrality, MAX_NONCENTRALITY);
 	}
 };
 

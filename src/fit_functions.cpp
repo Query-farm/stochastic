@@ -97,6 +97,12 @@ struct FitAggregate : OP {
 		result[param_count] = log_likelihood;
 		result[param_count + 1] = 2 * k - 2 * log_likelihood;
 		result[param_count + 2] = k * std::log(OP::Count(state)) - 2 * log_likelihood;
+		for (auto value : result) {
+			if (!std::isfinite(value)) {
+				throw MathError(MathError::Kind::EVALUATION, "the fit is not finite; the values may be too large or "
+				                                             "too small in magnitude");
+			}
+		}
 		return result;
 	}
 };
