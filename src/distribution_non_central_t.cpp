@@ -1,5 +1,12 @@
 #include "utils.hpp"
 
+#include <boost/math/quadrature/exp_sinh.hpp>
+
+// The non-central t density integrates with exp_sinh, which holds its state in a std::shared_ptr. With Apple
+// clang and libc++ the shared_ptr control block's virtual functions are otherwise left undefined when they are
+// first needed from code instantiated at the end of this file, which fails to link.
+template class boost::math::quadrature::exp_sinh<double, duckdb::StochasticPolicy>;
+
 namespace duckdb {
 
 namespace {

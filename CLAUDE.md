@@ -63,7 +63,7 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 - `DiscreteQuantile` returns the smallest integer x with CDF(x) >= p.
 - `CheckSampleRange` rejects integer sampler parameters whose samples could exceed 2^53.
 
-**Boost.Math Policy (`src/include/stochastic_policy.hpp`)**: Domain, pole, evaluation and rounding errors throw `MathError`, which the executors turn into `InvalidInputException` prefixed with the distribution name. Overflow returns ±inf. `promote_double<false>` keeps calculations in DOUBLE (long double is software emulated and ~100x slower on Linux aarch64). `assert_undefined<false>` turns undefined properties into runtime errors instead of compile errors.
+**Boost.Math Policy (`src/include/stochastic_policy.hpp`)**: Domain, pole, evaluation and rounding errors throw `MathError`, which the executors turn into `InvalidInputException` prefixed with the distribution name. Overflow returns ±inf. `promote_double<false>` keeps calculations in DOUBLE (long double is software emulated and ~100x slower on Linux aarch64). `StochasticUndefinedPolicy` adds `assert_undefined<false>`, which turns always-undefined properties (Cauchy moments, non-central beta skewness and kurtosis) into runtime errors instead of compile errors; it is kept off the other distributions because it breaks linking of the non-central t with Apple clang.
 
 **Samplers (`src/include/samplers.hpp`, `src/include/custom_random.hpp`)**: Samplers for distributions the C++ standard library lacks. `InverseTransformSampler<Dist, T>` samples any Boost distribution via its quantile function.
 

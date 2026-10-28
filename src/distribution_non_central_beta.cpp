@@ -9,7 +9,7 @@ struct NonCentralBetaSpec : DistributionSpecBase {
 	static constexpr const char *display_name = "non-central beta";
 	using params = std::tuple<double, double, double>;
 	static constexpr std::array<const char *, 3> param_names = {"alpha", "beta", "noncentrality"};
-	using boost_type = boost::math::non_central_beta_distribution<double, StochasticPolicy>;
+	using boost_type = boost::math::non_central_beta_distribution<double, StochasticUndefinedPolicy>;
 	using sampler_type = NonCentralBetaSampler;
 	using sample_t = double;
 	static constexpr const char *example_params = "2.0, 3.0, 1.0";

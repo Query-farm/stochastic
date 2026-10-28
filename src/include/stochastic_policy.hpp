@@ -41,18 +41,29 @@ std::string FormatMathErrorMessage(const char *message, const T &val) {
 }
 
 //! Domain, pole, evaluation and rounding errors are reported through MathError. Overflow returns +/-infinity
-//! (e.g. the normal quantile at p = 1) instead of raising an error. Undefined properties (e.g. the mean of a
-//! Cauchy distribution) raise a domain error at runtime rather than failing to compile. Calculations stay in
-//! DOUBLE: promoting to long double is ~100x slower where it is software emulated (Linux aarch64) and makes
-//! results differ between platforms.
+//! (e.g. the normal quantile at p = 1) instead of raising an error. Calculations stay in DOUBLE: promoting to
+//! long double is ~100x slower where it is software emulated (Linux aarch64) and makes results differ between
+//! platforms.
 using StochasticPolicy =
     boost::math::policies::policy<boost::math::policies::domain_error<boost::math::policies::user_error>,
                                   boost::math::policies::pole_error<boost::math::policies::user_error>,
                                   boost::math::policies::overflow_error<boost::math::policies::ignore_error>,
                                   boost::math::policies::evaluation_error<boost::math::policies::user_error>,
                                   boost::math::policies::rounding_error<boost::math::policies::user_error>,
-                                  boost::math::policies::assert_undefined<false>,
                                   boost::math::policies::promote_double<false>>;
+
+//! StochasticPolicy for distributions with properties that are always undefined (e.g. the mean of a Cauchy
+//! distribution): those raise a domain error at runtime rather than failing to compile. Only use it where it is
+//! needed - with Apple clang it leaves Boost's exp_sinh quadrature (used by the non-central t) with unresolved
+//! symbols.
+using StochasticUndefinedPolicy =
+    boost::math::policies::policy<boost::math::policies::domain_error<boost::math::policies::user_error>,
+                                  boost::math::policies::pole_error<boost::math::policies::user_error>,
+                                  boost::math::policies::overflow_error<boost::math::policies::ignore_error>,
+                                  boost::math::policies::evaluation_error<boost::math::policies::user_error>,
+                                  boost::math::policies::rounding_error<boost::math::policies::user_error>,
+                                  boost::math::policies::promote_double<false>,
+                                  boost::math::policies::assert_undefined<false>>;
 
 //! Discrete distributions round quantiles to the smallest integer x with CDF(x) >= p, which is also what
 //! inverse-transform sampling needs.
@@ -62,7 +73,6 @@ using StochasticDiscretePolicy =
                                   boost::math::policies::overflow_error<boost::math::policies::ignore_error>,
                                   boost::math::policies::evaluation_error<boost::math::policies::user_error>,
                                   boost::math::policies::rounding_error<boost::math::policies::user_error>,
-                                  boost::math::policies::assert_undefined<false>,
                                   boost::math::policies::promote_double<false>,
                                   boost::math::policies::discrete_quantile<boost::math::policies::integer_round_up>>;
 
