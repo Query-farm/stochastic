@@ -20,6 +20,7 @@ namespace duckdb {
 	X(beta)                                                                                                            \
 	X(binomial)                                                                                                        \
 	X(cauchy)                                                                                                          \
+	X(dirichlet)                                                                                                       \
 	X(chi_squared)                                                                                                     \
 	X(exponential)                                                                                                     \
 	X(extreme_value)                                                                                                   \
@@ -34,6 +35,7 @@ namespace duckdb {
 	X(laplace)                                                                                                         \
 	X(logistic)                                                                                                        \
 	X(lognormal)                                                                                                       \
+	X(multinomial)                                                                                                     \
 	X(negative_binomial)                                                                                               \
 	X(non_central_beta)                                                                                                \
 	X(non_central_chi_squared)                                                                                         \

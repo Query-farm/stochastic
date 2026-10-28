@@ -1,0 +1,93 @@
+# name: test/sql/multinomial.test
+# description: multinomial distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_multinomial_pmf(10, [0.2, 0.3, 0.5], [2, 3, 5]) - (0.08504999999999999)) <= 1e-9 * greatest(1, abs(0.08504999999999999));
+----
+true
+
+query I
+SELECT abs(dist_multinomial_log_pmf(10, [0.2, 0.3, 0.5], [2, 3, 5]) - (-2.4645159601402664)) <= 1e-9 * greatest(1, abs(-2.4645159601402664));
+----
+true
+
+query I
+SELECT abs(dist_multinomial_pmf(10, [0.2, 0.3, 0.5], [0, 0, 10]) - (0.0009765625000000009)) <= 1e-9 * greatest(1, abs(0.0009765625000000009));
+----
+true
+
+query I
+SELECT abs(dist_multinomial_pdf(10, [0.2, 0.3, 0.5], [1, 4, 5]) - (0.06378750000000005)) <= 1e-9 * greatest(1, abs(0.06378750000000005));
+----
+true
+
+query I
+SELECT len(v) = 3 AND abs(v[1] - (2.0)) <= 1e-12 AND abs(v[2] - (3.0)) <= 1e-12 AND abs(v[3] - (5.0)) <= 1e-12 FROM (SELECT dist_multinomial_mean(10, [0.2, 0.3, 0.5]) AS v);
+----
+true
+
+query I
+SELECT len(v) = 3 AND abs(v[1] - (1.5999999999999999)) <= 1e-12 AND abs(v[2] - (2.1)) <= 1e-12 AND abs(v[3] - (2.5)) <= 1e-12 FROM (SELECT dist_multinomial_variance(10, [0.2, 0.3, 0.5]) AS v);
+----
+true
+
+# Counts that do not sum to trials, or that need a zero-probability outcome, have probability 0
+query RR
+SELECT dist_multinomial_pmf(10, [0.2, 0.3, 0.5], [2, 3, 4]), dist_multinomial_pmf(2, [0.0, 1.0], [1, 1]);
+----
+0.0	0.0
+
+query I
+SELECT dist_multinomial_pmf(2, [0.0, 1.0], [0, 2]);
+----
+1.0
+
+query I
+SELECT typeof(dist_multinomial_sample(10, [0.2, 0.3, 0.5]));
+----
+BIGINT[]
+
+query I
+SELECT bool_and(len(s) = 3 AND list_sum(s) = 10 AND list_min(s) >= 0)
+FROM (SELECT dist_multinomial_sample(10, [0.2, 0.3, 0.5]) AS s FROM range(10000));
+----
+true
+
+query III
+SELECT abs(avg(s[1]) - 2) < 0.03, abs(avg(s[3]) - 5) < 0.03, abs(var_samp(s[2]) - 2.1) < 0.05
+FROM (SELECT dist_multinomial_sample(10, [0.2, 0.3, 0.5]) AS s FROM range(100000));
+----
+true	true	true
+
+query II
+SELECT dist_multinomial_sample(0, [0.5, 0.5]), dist_multinomial_sample(5, [0.0, 1.0, 0.0]);
+----
+[0, 0]	[0, 5, 0]
+
+query I
+SELECT dist_multinomial_sample(NULL, [0.5, 0.5]);
+----
+NULL
+
+statement error
+SELECT dist_multinomial_sample(10, [0.2, 0.3]);
+----
+multinomial: probs must sum to 1, got 0.5
+
+statement error
+SELECT dist_multinomial_sample(-1, [0.5, 0.5]);
+----
+multinomial: trials must be >= 0, got -1
+
+statement error
+SELECT dist_multinomial_pmf(10, [0.5, 0.5], [5, 3, 2]);
+----
+multinomial: x must have the same length as probs (2), got 3
+
+statement error
+SELECT dist_multinomial_sample(10, [1.5, -0.5]);
+----
+multinomial: probs must be between 0 and 1, got 1.5

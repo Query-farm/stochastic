@@ -1,0 +1,85 @@
+# name: test/sql/dirichlet.test
+# description: Dirichlet distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_dirichlet_pdf([2.0, 3.0, 5.0], [0.2, 0.3, 0.5]) - (8.505000000000003)) <= 1e-9 * greatest(1, abs(8.505000000000003));
+----
+true
+
+query I
+SELECT abs(dist_dirichlet_log_pdf([2.0, 3.0, 5.0], [0.2, 0.3, 0.5]) - (2.1406542258478254)) <= 1e-9 * greatest(1, abs(2.1406542258478254));
+----
+true
+
+query I
+SELECT abs(dist_dirichlet_pdf([0.5, 1.0, 4.0], [0.1, 0.6, 0.3]) - (0.4202370546833133)) <= 1e-9 * greatest(1, abs(0.4202370546833133));
+----
+true
+
+query I
+SELECT len(v) = 3 AND abs(v[1] - (0.2)) <= 1e-12 AND abs(v[2] - (0.3)) <= 1e-12 AND abs(v[3] - (0.5)) <= 1e-12 FROM (SELECT dist_dirichlet_mean([2.0, 3.0, 5.0]) AS v);
+----
+true
+
+query I
+SELECT len(v) = 3 AND abs(v[1] - (0.014545454545454545)) <= 1e-12 AND abs(v[2] - (0.019090909090909092)) <= 1e-12 AND abs(v[3] - (0.022727272727272728)) <= 1e-12 FROM (SELECT dist_dirichlet_variance([2.0, 3.0, 5.0]) AS v);
+----
+true
+
+query I
+SELECT typeof(dist_dirichlet_sample([2.0, 3.0, 5.0]));
+----
+DOUBLE[]
+
+# Samples lie on the simplex and their component means match alpha / sum(alpha)
+query I
+SELECT bool_and(len(s) = 3 AND abs(list_sum(s) - 1) < 1e-12 AND list_min(s) >= 0)
+FROM (SELECT dist_dirichlet_sample([2.0, 3.0, 5.0]) AS s FROM range(10000));
+----
+true
+
+query III
+SELECT abs(avg(s[1]) - 0.2) < 0.005, abs(avg(s[2]) - 0.3) < 0.005, abs(var_samp(s[3]) - 0.5 * 0.5 / 11) < 0.002
+FROM (SELECT dist_dirichlet_sample([2.0, 3.0, 5.0]) AS s FROM range(100000));
+----
+true	true	true
+
+# alpha may vary per row
+query II
+SELECT len(dist_dirichlet_sample(a)), dist_dirichlet_mean(a)[1] FROM (VALUES ([1.0, 1.0]), ([1.0, 1.0, 2.0])) t(a) ORDER BY 1;
+----
+2	0.5
+3	0.25
+
+query II
+SELECT dist_dirichlet_sample(NULL), dist_dirichlet_pdf([1.0, 1.0], NULL);
+----
+NULL	NULL
+
+statement error
+SELECT dist_dirichlet_sample([1.0]);
+----
+dirichlet: alpha must have at least 2 elements, got 1
+
+statement error
+SELECT dist_dirichlet_sample([1.0, -1.0]);
+----
+dirichlet: alpha must be > 0, got -1
+
+statement error
+SELECT dist_dirichlet_sample([1.0, NULL]);
+----
+dirichlet: alpha must not contain NULL elements
+
+statement error
+SELECT dist_dirichlet_pdf([1.0, 2.0], [0.3, 0.3]);
+----
+dirichlet: x must sum to 1, got 0.6
+
+statement error
+SELECT dist_dirichlet_pdf([1.0, 2.0, 3.0], [0.5, 0.5]);
+----
+dirichlet: x must have the same length as alpha (3), got 2

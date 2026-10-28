@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a DuckDB extension called "stochastic" developed by Query.Farm that provides comprehensive statistical distribution functions to DuckDB. The extension enables advanced statistical analysis, probability calculations, random sampling, distribution fitting and hypothesis tests directly within SQL queries.
 
-The extension supports 34 probability distributions (normal, beta, binomial, poisson, the non-central family, etc.) with functions for PDF/PMF, CDF, quantile, sampling, and distribution properties (mean, variance, etc.), plus maximum likelihood fit aggregates and hypothesis test aggregates.
+The extension supports 36 probability distributions (normal, beta, binomial, poisson, the non-central family, the multivariate Dirichlet and multinomial, etc.) with functions for PDF/PMF, CDF, quantile, sampling, and distribution properties (mean, variance, etc.), plus maximum likelihood fit aggregates and hypothesis test aggregates.
 
 The `v2.0` branch targets DuckDB v2.0 and is compiled as C++17.
 
@@ -53,7 +53,7 @@ When making changes the version should always be updated to the current date plu
 - example arguments for the generated documentation, and `static void Validate(params...)`
 - flags: `discrete` (adds `pmf`/`log_pmf`, integer quantiles, no KS test), `quantile_t`, `check_sample_range`
 
-Both `boost_type` and `sampler_type` are constructed from the parameters in declaration order. The file's `Load_<name>_distribution()` calls `RegisterStandardDistribution<Spec>(loader)`. `distribution_uniform_int.cpp` is the exception: it uses an exact integer implementation and registers its functions individually with `RegisterSampling` / `RegisterEvaluation`.
+Both `boost_type` and `sampler_type` are constructed from the parameters in declaration order. The file's `Load_<name>_distribution()` calls `RegisterStandardDistribution<Spec>(loader)`. `distribution_uniform_int.cpp` is an exception: it uses an exact integer implementation and registers its functions individually with `RegisterSampling` / `RegisterEvaluation`. The multivariate `distribution_dirichlet.cpp` and `distribution_multinomial.cpp` take LIST parameters and use the helpers in `src/include/multivariate.hpp`; they provide sample, pdf/pmf, log_pdf/log_pmf, mean and variance (per component).
 
 **Registration and Execution (`src/include/utils.hpp`)**:
 - `RegisterStandardDistribution<Spec>` registers sample, samples, pdf/log_pdf (and pmf/log_pmf), the CDFs, quantiles, hazard, properties, range/support and (for continuous distributions) the KS test.
@@ -132,7 +132,7 @@ Every function is categorized as `[statistics, <kind>, <distribution>]` where ki
 ```
 src/
 ├── stochastic_extension.cpp          # Extension entry point and distribution list
-├── distribution_*.cpp                # One spec per distribution (34 files)
+├── distribution_*.cpp                # One file per distribution (36 files)
 ├── fit_functions.cpp                 # dist_<name>_fit aggregates
 ├── hypothesis_tests.cpp              # t-tests and chi-squared test aggregates
 ├── query_farm_telemetry.cpp          # Optional telemetry

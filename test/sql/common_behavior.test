@@ -260,6 +260,7 @@ query I
 SELECT count(*) FROM (
     SELECT regexp_extract(function_name, '^dist_(.*)_mean$', 1) AS dist
     FROM duckdb_functions() WHERE function_name LIKE 'dist\_%\_mean' ESCAPE '\'
+      AND function_name NOT IN ('dist_dirichlet_mean', 'dist_multinomial_mean')
 ) d, (VALUES ('sample'), ('samples'), ('pdf'), ('log_pdf'), ('cdf'), ('cdf_complement'), ('log_cdf'),
              ('log_cdf_complement'), ('quantile'), ('quantile_complement'), ('hazard'), ('chf'), ('mean'),
              ('stddev'), ('variance'), ('mode'), ('median'), ('skewness'), ('kurtosis'), ('kurtosis_excess'),
