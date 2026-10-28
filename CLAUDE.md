@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a DuckDB extension called "stochastic" developed by Query.Farm that provides comprehensive statistical distribution functions to DuckDB. The extension enables advanced statistical analysis, probability calculations, and random sampling directly within SQL queries.
+This is a DuckDB extension called "stochastic" developed by Query.Farm that provides comprehensive statistical distribution functions to DuckDB. The extension enables advanced statistical analysis, probability calculations, random sampling, distribution fitting and hypothesis tests directly within SQL queries.
 
-The extension supports 20+ probability distributions (normal, beta, binomial, poisson, etc.) with functions for PDF/PMF, CDF, quantile, sampling, and distribution properties (mean, variance, etc.).
+The extension supports 34 probability distributions (normal, beta, binomial, poisson, the non-central family, etc.) with functions for PDF/PMF, CDF, quantile, sampling, and distribution properties (mean, variance, etc.), plus maximum likelihood fit aggregates and hypothesis test aggregates.
+
+The `v2.0` branch targets DuckDB v2.0 and is compiled as C++17.
 
 ## Build Commands
 
@@ -43,41 +45,41 @@ When making changes the version should always be updated to the current date plu
 
 ### Extension Structure
 
-The extension follows the DuckDB extension template structure with these key components:
+**Entry Point (`src/stochastic_extension.cpp`)**: The `STOCHASTIC_DISTRIBUTIONS(X)` macro lists every distribution; it declares and calls each `Load_<name>_distribution()`. `Load_fit_functions()` and `Load_hypothesis_tests()` register the aggregates. Also includes Query.Farm telemetry (can be opted out via `QUERY_FARM_TELEMETRY_OPT_OUT` environment variable).
 
-**Entry Point (`src/stochastic_extension.cpp`)**: Registers all distribution functions via `Load_<distribution>_distribution()` functions. Also includes Query.Farm telemetry (can be opted out via `QUERY_FARM_TELEMETRY_OPT_OUT` environment variable).
+**Distribution Specs (`src/distribution_*.cpp`)**: Each distribution is a small spec struct deriving from `DistributionSpecBase` (see the comment at the top of `src/include/utils.hpp`):
+- `name`, `display_name`, `params` (a `std::tuple` of DOUBLE/BIGINT types), `param_names`
+- `boost_type` (a Boost.Math distribution using `StochasticPolicy`, or `StochasticDiscretePolicy` for discrete ones), `sampler_type` and `sample_t`
+- example arguments for the generated documentation, and `static void Validate(params...)`
+- flags: `discrete` (adds `pmf`/`log_pmf`, integer quantiles, no KS test), `quantile_t`, `check_sample_range`
 
-**Distribution Implementations (`src/distribution_*.cpp`)**: Each distribution is in its own file (e.g., `distribution_normal.cpp`, `distribution_beta.cpp`). Each file:
-- Uses preprocessor macros to define distribution name and type mappings
-- Specializes `distribution_traits` template for both Boost.Math and Boost.Random versions
-- Registers all functions (sample, pdf, cdf, quantile, mean, variance, etc.) using the `REGISTER` macro
+Both `boost_type` and `sampler_type` are constructed from the parameters in declaration order. The file's `Load_<name>_distribution()` calls `RegisterStandardDistribution<Spec>(loader)`. `distribution_uniform_int.cpp` is the exception: it uses an exact integer implementation and registers its functions individually with `RegisterSampling` / `RegisterEvaluation`.
 
-**Function Registration System (`src/include/utils.hpp`)**: Template-based system that:
-- Uses `distribution_traits` to determine parameter types and names
-- Automatically generates function names with pattern: `dist_<prefix>_<function>` (e.g., `dist_normal_pdf`)
-- Handles both unary (1 param) and binary (2 param) distributions
-- Optimizes for constant vectors by creating distribution once and reusing
+**Registration and Execution (`src/include/utils.hpp`)**:
+- `RegisterStandardDistribution<Spec>` registers sample, samples, pdf/log_pdf (and pmf/log_pmf), the CDFs, quantiles, hazard, properties, range/support and (for continuous distributions) the KS test.
+- `ExecuteDistribution` is the single scalar executor for any number of parameters: it reads inputs with `Vector::Values<T>()`, writes with `FlatVector::Writer`, propagates NULLs, builds the distribution once when the parameters are constant, and returns a constant result when every input is constant (except for VOLATILE sampling).
+- Validation runs `Spec::Validate` first and then rejects any non-finite parameter.
+- Properties are wrapped in `UndefinedAsNull`, so undefined moments (e.g. the Cauchy mean) return NULL.
+- `DiscreteQuantile` returns the smallest integer x with CDF(x) >= p.
+- `CheckSampleRange` rejects integer sampler parameters whose samples could exceed 2^53.
 
-**RNG Management (`src/rng_utils.cpp`, `src/include/rng_utils.hpp`)**: Thread-local Mersenne Twister RNG (`boost::random::mt19937`) with:
-- Fixed global seed (12345) for reproducibility
-- Unique per-thread seeding to ensure thread-safety
-- Thread index mapping for deterministic parallel execution
+**Boost.Math Policy (`src/include/stochastic_policy.hpp`)**: Domain, pole, evaluation and rounding errors throw `MathError`, which the executors turn into `InvalidInputException` prefixed with the distribution name. Overflow returns ±inf. `promote_double<false>` keeps calculations in DOUBLE (long double is software emulated and ~100x slower on Linux aarch64). `assert_undefined<false>` turns undefined properties into runtime errors instead of compile errors.
 
-**Type System (`src/include/distribution_traits.hpp`, `src/include/callable_traits.hpp`)**:
-- `distribution_traits`: Maps C++ types to DuckDB LogicalTypes
-- `callable_traits`: Template metaprogramming for extracting function signatures
-- `logical_type_map`: Supports double, int64_t, and pair<double,double> (for ranges)
+**Samplers (`src/include/samplers.hpp`, `src/include/custom_random.hpp`)**: Samplers for distributions the C++ standard library lacks. `InverseTransformSampler<Dist, T>` samples any Boost distribution via its quantile function.
+
+**Aggregates (`src/include/aggregate_utils.hpp`, `src/fit_functions.cpp`, `src/hypothesis_tests.cpp`)**: `RegisterStructAggregate<OP>` builds a STRUCT-of-DOUBLE aggregate from an operation struct (`inputs`, `result_names`, a trivially movable `State`, `Update`, `Combine`, `Finalize`, `Destroy`). `RunningMoments` (mergeable Welford moments), `CollectedValues` and `GroupParameters` are shared building blocks.
+
+**RNG (`src/include/rng_adapter.hpp`)**: Each chunk seeds a local `std::mt19937_64` from DuckDB's per-client `RandomEngine`, so `SELECT setseed(x)` makes sampling reproducible, including in parallel.
+
+**Types (`src/include/distribution_traits.hpp`)**: `logical_type_map` maps C++ types (double, int64_t, bool, pairs for ARRAY results) to DuckDB LogicalTypes.
 
 ### Adding a New Distribution
 
-To add a new distribution:
-
-1. Create `src/distribution_<name>.cpp` following the pattern in existing files
-2. Define the distribution traits with parameter names, types, and validation
-3. Register all desired functions (sample, pdf, cdf, etc.) in the `Load_<name>_distribution` function
-4. Add the source file to `EXTENSION_SOURCES` in `CMakeLists.txt`
-5. Add forward declaration and call to `Load_<name>_distribution()` in `src/stochastic_extension.cpp`
-6. Create test file `test/sql/<name>.test` with comprehensive test cases
+1. Create `src/distribution_<name>.cpp` with a spec struct and `Load_<name>_distribution()` following an existing file (sources are picked up by the `src/distribution_*.cpp` glob in `CMakeLists.txt`)
+2. If the standard library has no sampler, add one to `src/include/samplers.hpp` or use `InverseTransformSampler<boost_type>`
+3. Add `X(<name>)` to `STOCHASTIC_DISTRIBUTIONS` in `src/stochastic_extension.cpp`
+4. Create `test/sql/<name>.test` with reference values from an independent implementation (e.g. SciPy) and sample moment checks
+5. Parameter names must not be `x`, `p` or `n` (they collide with call arguments; see `test/sql/parameter_names.test`)
 
 ### Testing
 
@@ -86,6 +88,8 @@ Tests use DuckDB's `.test` format (see `test/sql/normal.test` for examples). Tes
 - Use `require stochastic` to ensure extension is loaded
 - Support `statement error`, `query R` (float), `query I` (integer), `query T` (text)
 - Can test multiple columns with `query RR`, `query RRR`, etc.
+
+`make test` runs DuckDB's `scripts/ci/run_tests.py`, which needs Python 3.10 or newer. `./build/release/test/unittest "test/sql/*"` runs the same tests directly. In the v2.0 shell the statically linked extension is not loaded automatically; use `build/release/duckdb -unsigned -c "LOAD 'build/release/extension/stochastic/stochastic.duckdb_extension'; ..."`.
 
 ### Dependencies
 
@@ -110,25 +114,36 @@ All functions follow the pattern: `dist_<distribution>_<operation>`
 
 Examples:
 - `dist_normal_sample(mean, stddev)` - Generate random sample
+- `dist_normal_samples(mean, stddev, n)` - List of n random samples
 - `dist_normal_pdf(mean, stddev, x)` - Probability density at x
 - `dist_normal_cdf(mean, stddev, x)` - Cumulative distribution at x
 - `dist_normal_quantile(mean, stddev, p)` - Inverse CDF (p-th quantile)
 - `dist_normal_mean(mean, stddev)` - Distribution mean
 - `dist_normal_variance(mean, stddev)` - Distribution variance
+- `dist_normal_fit(x)` - Aggregate: maximum likelihood parameters as a STRUCT
+- `dist_normal_ks_test(x, mean, stddev)` - Aggregate: Kolmogorov-Smirnov test
+
+Discrete distributions also have `pmf` / `log_pmf`. The hypothesis tests that are not tied to a distribution are `welch_t_test`, `student_t_test`, `one_sample_t_test` and `chi_squared_test`.
+
+Every function is categorized as `[statistics, <kind>, <distribution>]` where kind is one of sampling, density, cumulative, quantile, hazard, property, fit or hypothesis_test. Tests that are not tied to a distribution omit the distribution.
 
 ### Code Organization
 
 ```
 src/
-├── stochastic_extension.cpp          # Extension entry point
-├── distribution_*.cpp                # Individual distribution implementations (20+ files)
-├── rng_utils.cpp                     # Thread-local RNG management
-├── query_farm_telemetry.cpp         # Optional telemetry
+├── stochastic_extension.cpp          # Extension entry point and distribution list
+├── distribution_*.cpp                # One spec per distribution (34 files)
+├── fit_functions.cpp                 # dist_<name>_fit aggregates
+├── hypothesis_tests.cpp              # t-tests and chi-squared test aggregates
+├── query_farm_telemetry.cpp          # Optional telemetry
 └── include/
-    ├── utils.hpp                     # Template-based function registration system
-    ├── distribution_traits.hpp       # Type system for distributions
-    ├── callable_traits.hpp           # Template metaprogramming utilities
-    ├── rng_utils.hpp                 # RNG declarations
+    ├── utils.hpp                     # Specs, scalar executor, registration, KS test
+    ├── stochastic_policy.hpp         # Boost.Math error policy
+    ├── aggregate_utils.hpp           # STRUCT aggregate harness
+    ├── samplers.hpp                  # Additional samplers
+    ├── custom_random.hpp             # Beta, Laplace, logistic, Pareto, Rayleigh samplers
+    ├── distribution_traits.hpp       # C++ to DuckDB type mapping
+    ├── rng_adapter.hpp               # Per-chunk RNG seeded from DuckDB's RandomEngine
     └── ...
 
 test/sql/
@@ -138,12 +153,6 @@ duckdb/                               # Git submodule - DuckDB source
 extension-ci-tools/                   # Git submodule - shared build infrastructure
 ```
 
-### Key Implementation Details
+### Telemetry
 
-**Constant Vector Optimization**: When all parameters are constant, the distribution object is created once and reused for all rows (see `DistributionSampleUnary` and `DistributionSampleBinary` in `utils.hpp`).
-
-**Parameter Validation**: Each distribution validates its parameters in `distribution_traits::ValidateParameters()` and throws `InvalidInputException` for invalid inputs.
-
-**Thread Safety**: The thread-local RNG ensures thread-safe random number generation without locks in the hot path.
-
-**Telemetry**: The extension sends anonymous usage telemetry to Query.Farm (opt-out via environment variable). This happens once per extension load and includes DuckDB version, platform, and extension version. This telemetry is opt-out and does not need to be documented as Query.Farm documents it on its own website.
+The extension sends anonymous usage telemetry to Query.Farm (opt-out via environment variable). This happens once per extension load and includes DuckDB version, platform, and extension version. This telemetry is opt-out and does not need to be documented as Query.Farm documents it on its own website.

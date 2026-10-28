@@ -1,10 +1,12 @@
 #pragma once
 #include "duckdb.hpp"
 #include <random>
-#include "callable_traits.hpp"
-#include "custom_random.hpp"
+#include <type_traits>
 
 namespace duckdb {
+
+template <typename T>
+constexpr bool AlwaysFalse_v = !std::is_same<T, T>::value;
 
 template <typename T>
 struct logical_type_map {

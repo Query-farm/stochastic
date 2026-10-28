@@ -12,7 +12,7 @@
 [![DuckDB](https://img.shields.io/badge/DuckDB-extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://query.farm/products/extensions/stochastic/)
 [![v2.0 build](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml/badge.svg?branch=v2.0)](https://github.com/Query-farm/stochastic/actions/workflows/MainDistributionPipeline.yml?query=branch%3Av2.0)
 
-Sample probability distributions and compute their statistical properties in DuckDB.
+Sample probability distributions, compute their statistical properties, fit them to data and run hypothesis tests in DuckDB.
 
 ## Documentation
 
