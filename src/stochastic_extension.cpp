@@ -53,11 +53,15 @@ namespace duckdb {
 #define DECLARE_LOAD(NAME) void Load_##NAME##_distribution(ExtensionLoader &loader);
 STOCHASTIC_DISTRIBUTIONS(DECLARE_LOAD)
 #undef DECLARE_LOAD
+void Load_fit_functions(ExtensionLoader &loader);
+void Load_hypothesis_tests(ExtensionLoader &loader);
 
 static void LoadInternal(ExtensionLoader &loader) {
 #define CALL_LOAD(NAME) Load_##NAME##_distribution(loader);
 	STOCHASTIC_DISTRIBUTIONS(CALL_LOAD)
 #undef CALL_LOAD
+	Load_fit_functions(loader);
+	Load_hypothesis_tests(loader);
 
 	QueryFarmSendTelemetry(loader, "stochastic", STOCHASTIC_VERSION);
 }

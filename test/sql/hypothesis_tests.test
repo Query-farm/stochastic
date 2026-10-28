@@ -1,0 +1,175 @@
+# name: test/sql/hypothesis_tests.test
+# description: t-tests, chi-squared and Kolmogorov-Smirnov test aggregates, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+statement ok
+CREATE TABLE samples AS SELECT * FROM (VALUES (4.136029, 0), (3.017664, 0), (3.441575, 0), (5.174815, 0), (5.477203, 0), (5.407032, 0), (6.154351, 0), (4.156951, 0), (4.971275, 0), (4.26827, 0), (5.424634, 0), (6.01797, 0), (5.772028, 0), (6.575624, 0), (3.317461, 0), (4.767853, 0), (3.321721, 0), (5.929263, 0), (5.593292, 0), (5.873918, 0), (7.27624, 0), (5.536959, 0), (4.073219, 0), (5.686059, 0), (5.680045, 0), (5.304757, 0), (3.663404, 0), (3.269886, 0), (4.279237, 0), (4.483505, 0), (4.38743, 0), (4.634408, 0), (6.037558, 0), (4.989774, 0), (4.734434, 0), (5.018358, 0), (4.753768, 0), (4.893633, 0), (3.102472, 0), (6.20937, 0), (7.119126, 1), (7.715852, 1), (3.285284, 1), (4.575282, 1), (6.50538, 1), (9.084838, 1), (5.87484, 1), (5.661313, 1), (4.56578, 1), (4.770343, 1), (5.647836, 1), (3.150938, 1), (2.105911, 1), (3.784383, 1), (10.228074, 1), (3.372401, 1), (5.335081, 1), (9.804026, 1), (4.364676, 1), (6.306767, 1), (4.822769, 1), (8.357351, 1), (6.576071, 1), (4.596133, 1), (4.820836, 1), (3.798264, 1), (7.897209, 1), (7.515926, 1), (5.308489, 1), (2.476259, 1), (4.047027, 1), (8.729733, 1), (5.39717, 1), (4.647368, 1), (6.72078, 1), (3.357559, 1), (8.308897, 1), (4.618101, 1), (6.19265, 1), (4.111211, 1), (6.849648, 1), (5.888353, 1), (3.174265, 1), (4.994731, 1), (9.187901, 1), (8.149129, 1), (3.521027, 1), (4.739816, 1), (6.46377, 1), (8.262191, 1), (3.847757, 1), (6.963293, 1), (6.687829, 1), (0.558887, 1), (4.853224, 1)) t(x, sample_index);
+
+query I
+SELECT abs((SELECT welch_t_test(x, sample_index).t_statistic FROM samples) - (-2.1992040312903645)) <= 1e-8 * greatest(1, abs(-2.1992040312903645));
+----
+true
+
+query I
+SELECT abs((SELECT welch_t_test(x, sample_index).degrees_of_freedom FROM samples) - (83.72191977572427)) <= 1e-8 * greatest(1, abs(83.72191977572427));
+----
+true
+
+query I
+SELECT abs((SELECT welch_t_test(x, sample_index).p_value FROM samples) - (0.030620890098033836)) <= 1e-8 * greatest(1, abs(0.030620890098033836));
+----
+true
+
+query I
+SELECT abs((SELECT student_t_test(x, sample_index).t_statistic FROM samples) - (-1.997601747961849)) <= 1e-8 * greatest(1, abs(-1.997601747961849));
+----
+true
+
+query I
+SELECT abs((SELECT student_t_test(x, sample_index).degrees_of_freedom FROM samples) - (93.0)) <= 1e-8 * greatest(1, abs(93.0));
+----
+true
+
+query I
+SELECT abs((SELECT student_t_test(x, sample_index).p_value FROM samples) - (0.048681567400898774)) <= 1e-8 * greatest(1, abs(0.048681567400898774));
+----
+true
+
+query I
+SELECT abs((SELECT one_sample_t_test(x, 5.2).t_statistic FROM samples WHERE sample_index = 0) - (-1.7137710082778457)) <= 1e-8 * greatest(1, abs(-1.7137710082778457));
+----
+true
+
+query I
+SELECT abs((SELECT one_sample_t_test(x, 5.2).p_value FROM samples WHERE sample_index = 0) - (0.09450987944161303)) <= 1e-8 * greatest(1, abs(0.09450987944161303));
+----
+true
+
+query I
+SELECT one_sample_t_test(x, 5.2).degrees_of_freedom FROM samples WHERE sample_index = 0;
+----
+39.0
+
+statement ok
+CREATE TABLE categories AS SELECT * FROM (VALUES (18.0, 0.2), (22.0, 0.2), (31.0, 0.3), (29.0, 0.3)) t(observed, expected);
+
+query I
+SELECT abs((SELECT chi_squared_test(observed, expected).statistic FROM categories) - (0.4666666666666667)) <= 1e-8 * greatest(1, abs(0.4666666666666667));
+----
+true
+
+query I
+SELECT abs((SELECT chi_squared_test(observed, expected).p_value FROM categories) - (0.9261511402759992)) <= 1e-8 * greatest(1, abs(0.9261511402759992));
+----
+true
+
+query I
+SELECT chi_squared_test(observed, expected).degrees_of_freedom FROM categories;
+----
+3.0
+
+# Expected values given as counts give the same result
+query I
+SELECT abs((SELECT chi_squared_test(observed, expected * 100).statistic FROM categories) - (0.4666666666666667)) <= 1e-8 * greatest(1, abs(0.4666666666666667));
+----
+true
+
+statement ok
+CREATE TABLE ks_data AS SELECT * FROM (VALUES (1.204257), (0.438765), (1.334466), (-0.031148), (0.540598), (0.941491), (0.723786), (-0.750955), (-0.111451), (-0.210442), (0.424906), (1.607305), (0.381314), (-0.704567), (-1.594364), (0.08009), (1.602314), (0.610344), (-1.007866), (-0.476614), (0.457804), (-0.145002), (-0.088132), (-0.525458), (0.04277), (-1.062002), (1.924601), (2.13294), (-0.652188), (2.831798), (-0.987324), (0.155286), (0.263202), (0.513495), (0.352693), (0.448222), (-0.432281), (-1.138526), (-1.041878), (-1.080166), (0.540066), (0.110244), (0.765489), (-1.888731), (2.148896), (-0.719642), (0.653476), (-0.421631), (1.447917), (2.918629), (0.173341), (-0.69343), (0.009935), (1.010839), (-0.408739), (1.464751), (2.001559), (2.112639), (1.794885), (-0.236315), (0.44854), (-0.59556), (1.246054), (-0.157222), (-0.479149), (0.756547), (0.789381), (-0.169645), (-0.677038), (2.049578), (-0.409536), (0.558863), (0.760829), (-2.227813), (-0.74252), (1.60953), (-0.394617), (0.632759), (1.086941), (1.093456)) t(x);
+
+query I
+SELECT abs((SELECT dist_normal_ks_test(x, 0.0, 1.0).statistic FROM ks_data) - (0.1395473997097344)) <= 1e-8 * greatest(1, abs(0.1395473997097344));
+----
+true
+
+query I
+SELECT abs((SELECT dist_normal_ks_test(x, 0.0, 1.0).p_value FROM ks_data) - (0.08868218024474964)) <= 1e-6 * greatest(1, abs(0.08868218024474964));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_ks_test(x, 0.0, 0.6).statistic FROM ks_data) - (0.14499814469024963)) <= 1e-8 * greatest(1, abs(0.14499814469024963));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_ks_test(x, 0.0, 0.6).p_value FROM ks_data) - (0.06919628140809755)) <= 1e-6 * greatest(1, abs(0.06919628140809755));
+----
+true
+
+query I
+SELECT abs((SELECT dist_uniform_real_ks_test(x, -3.0, 3.0).statistic FROM ks_data) - (0.2727456666666667)) <= 1e-8 * greatest(1, abs(0.2727456666666667));
+----
+true
+
+query I
+SELECT abs((SELECT dist_uniform_real_ks_test(x, -3.0, 3.0).p_value FROM ks_data) - (1.3547824065426737e-05)) <= 1e-6 * greatest(1, abs(1.3547824065426737e-05));
+----
+true
+
+# A large sample from the hypothesized distribution passes, a shifted one fails
+query II
+SELECT dist_normal_ks_test(x, 0.0, 1.0).p_value > 0.001, dist_normal_ks_test(x + 0.1, 0.0, 1.0).p_value < 1e-6
+FROM (SELECT dist_normal_sample(0.0, 1.0) AS x FROM range(50000));
+----
+true	true
+
+query I
+SELECT bool_and(p > 0.001) FROM (
+    SELECT g, dist_exponential_ks_test(x, 2.0).p_value AS p
+    FROM (SELECT i % 4 AS g, dist_exponential_sample(2.0) AS x FROM range(40000) t(i)) GROUP BY g
+);
+----
+true
+
+# Discrete distributions have no KS test
+statement error
+SELECT dist_poisson_ks_test(x, 3.0) FROM ks_data;
+----
+does not exist
+
+# Errors and NULL results
+statement error
+SELECT welch_t_test(x, 2) FROM samples;
+----
+welch_t_test: sample_index must be 0 or 1, got 2
+
+statement error
+SELECT dist_normal_ks_test(x, CASE WHEN x > 0 THEN 1.0 ELSE 0.0 END, 1.0) FROM ks_data;
+----
+distribution parameters must be the same for every row of a group
+
+statement error
+SELECT dist_normal_ks_test(x, 0.0, -1.0) FROM ks_data;
+----
+normal: stddev must be > 0, got -1
+
+statement error
+SELECT chi_squared_test(observed, 0.0) FROM categories;
+----
+chi_squared_test: expected values must be > 0, got 0
+
+query III
+SELECT welch_t_test(x, sample_index), one_sample_t_test(x, 0), dist_normal_ks_test(x, 0, 1)
+FROM samples WHERE sample_index = 0 AND x > 100;
+----
+NULL	NULL	NULL
+
+query I
+SELECT welch_t_test(x, sample_index) FROM samples WHERE sample_index = 0;
+----
+NULL
+
+query I
+SELECT typeof(welch_t_test(x, sample_index)) FROM samples;
+----
+STRUCT(t_statistic DOUBLE, degrees_of_freedom DOUBLE, p_value DOUBLE)
+
+query I
+SELECT count(*) FROM duckdb_functions()
+WHERE function_name IN ('welch_t_test', 'student_t_test', 'one_sample_t_test', 'chi_squared_test')
+  AND categories = ['statistics', 'hypothesis_test'] AND function_type = 'aggregate';
+----
+4

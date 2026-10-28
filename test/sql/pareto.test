@@ -147,7 +147,7 @@ true
 # Parameter metadata agrees with the established (scale, shape) runtime order.
 query T
 SELECT DISTINCT parameters[1:2] FROM duckdb_functions()
-WHERE function_name LIKE 'dist_pareto_%';
+WHERE function_name LIKE 'dist_pareto_%' AND function_type = 'scalar';
 ----
 [scale, shape]
 

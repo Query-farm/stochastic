@@ -22,6 +22,8 @@ file(GLOB DISTRIBUTION_SOURCES "src/distribution_*.cpp")
 set(EXTENSION_SOURCES
     src/stochastic_extension.cpp
     src/query_farm_telemetry.cpp
+    src/fit_functions.cpp
+    src/hypothesis_tests.cpp
     ${DISTRIBUTION_SOURCES}
 )
 

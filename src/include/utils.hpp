@@ -22,6 +22,8 @@
 #include "custom_random.hpp"
 #include "samplers.hpp"
 #include "distribution_traits.hpp"
+#include "aggregate_utils.hpp"
+#include <algorithm>
 
 namespace duckdb {
 
@@ -261,7 +263,7 @@ struct ArgIterators;
 template <class... Ts>
 struct ArgIterators<std::tuple<Ts...>> {
 	template <std::size_t... Is>
-	ArgIterators(DataChunk &args, idx_t offset, std::index_sequence<Is...>) : iterators(args.data[offset + Is]...) {
+	ArgIterators(const Vector *vectors, std::index_sequence<Is...>) : iterators(vectors[Is]...) {
 	}
 
 	template <std::size_t... Is>
@@ -301,8 +303,8 @@ void ExecuteDistribution(DataChunk &args, Vector &result, Make &&make, Op &&op) 
 	}
 
 	try {
-		ArgIterators<Params> params(args, 0, std::make_index_sequence<param_count> {});
-		ArgIterators<CallArgs> calls(args, param_count, std::make_index_sequence<call_count> {});
+		ArgIterators<Params> params(args.data.data(), std::make_index_sequence<param_count> {});
+		ArgIterators<CallArgs> calls(args.data.data() + param_count, std::make_index_sequence<call_count> {});
 		const idx_t rows = all_constant ? 1 : count;
 		ResultOutput<Result> output(result, rows, all_constant);
 
@@ -464,6 +466,79 @@ void RegisterSampling(ExtensionLoader &loader) {
 	    {{"n", LogicalType::BIGINT}});
 }
 
+//! One-sample Kolmogorov-Smirnov goodness-of-fit test of x against the distribution with the given parameters.
+//! The p-value uses the asymptotic Kolmogorov distribution of sqrt(n) D_n.
+template <class Spec>
+struct KolmogorovSmirnovTestOp {
+	using Params = typename Spec::params;
+	static constexpr idx_t param_count = SpecParamCount<Spec>();
+	static constexpr const char *name = Spec::name;
+	using inputs = decltype(std::tuple_cat(std::declval<std::tuple<double>>(), std::declval<Params>()));
+	static constexpr std::array<const char *, 2> result_names = {"statistic", "p_value"};
+
+	struct State {
+		CollectedValues values;
+		GroupParameters<param_count> params;
+	};
+
+	template <class... Ps>
+	static void Update(State &state, double x, Ps... params) {
+		if (!std::isfinite(x)) {
+			throw InvalidInputException("%s: ks_test values must be finite, got %s", name, FormatParameter(x));
+		}
+		state.params.Check(name, params...);
+		state.values.Add(x);
+	}
+
+	static void Combine(const State &source, State &target) {
+		target.params.Merge(name, source.params);
+		target.values.Merge(source.values);
+	}
+
+	template <std::size_t... Is>
+	static Params GetParams(const State &state, std::index_sequence<Is...>) {
+		return Params(static_cast<std::tuple_element_t<Is, Params>>(state.params.values[Is])...);
+	}
+
+	static std::optional<std::array<double, 2>> Finalize(State &state) {
+		const idx_t n = state.values.size();
+		if (n == 0) {
+			return std::nullopt;
+		}
+		const auto dist = MakeDistribution<Spec>(GetParams(state, std::make_index_sequence<param_count> {}));
+		auto &values = *state.values.values;
+		std::sort(values.begin(), values.end());
+		double statistic = 0;
+		for (idx_t i = 0; i < n; i++) {
+			const double cdf = boost::math::cdf(dist, values[i]);
+			statistic =
+			    std::max(statistic, std::max(cdf - static_cast<double>(i) / n, static_cast<double>(i + 1) / n - cdf));
+		}
+		const boost::math::kolmogorov_smirnov_distribution<double, StochasticPolicy> kolmogorov(static_cast<double>(n));
+		const double p_value = boost::math::cdf(boost::math::complement(kolmogorov, statistic));
+		return std::array<double, 2> {statistic, p_value};
+	}
+
+	static void Destroy(State &state) {
+		state.values.Destroy();
+	}
+};
+
+template <class Spec>
+void RegisterKolmogorovSmirnovTest(ExtensionLoader &loader) {
+	vector<std::pair<string, LogicalType>> params = {{"x", LogicalType::DOUBLE}};
+	const auto types = SpecLogicalTypes<Spec>(std::make_index_sequence<SpecParamCount<Spec>()> {});
+	for (idx_t i = 0; i < types.size(); i++) {
+		params.emplace_back(Spec::param_names[i], types[i]);
+	}
+	const auto name = SpecFunctionName<Spec>("ks_test");
+	RegisterStructAggregate<KolmogorovSmirnovTestOp<Spec>>(
+	    loader, name, params,
+	    {"One-sample Kolmogorov-Smirnov test of whether x follows the " + string(Spec::display_name) +
+	         " distribution with the given parameters. Returns the statistic D and the asymptotic p-value.",
+	     "SELECT " + name + "(x, " + Spec::example_params + ") FROM t", "hypothesis_test", Spec::name});
+}
+
 //! For discrete distributions, returns the smallest integer x with P(X <= x) >= p (or P(X > x) <= p for the
 //! complement). Boost rounds most discrete quantiles this way already but returns a continuous value for some
 //! (e.g. geometric).
@@ -500,6 +575,9 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	const string density = Spec::discrete ? "probability mass function (PMF)" : "probability density function (PDF)";
 
 	RegisterSampling<Spec>(loader);
+	if constexpr (!Spec::discrete) {
+		RegisterKolmogorovSmirnovTest<Spec>(loader);
+	}
 
 	auto pdf = [](const auto &dist, double x) -> double {
 		return boost::math::pdf(dist, x);
