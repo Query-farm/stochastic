@@ -159,19 +159,19 @@ SELECT dist_pareto_mean(1,3), dist_pareto_mean(2,3);
 statement error
 SELECT dist_pareto_sample(-1,3);
 ----
-Scale parameter must be finite and > 0
+pareto: scale must be > 0, got -1
 
 statement error
 SELECT dist_pareto_sample(1,0);
 ----
-Shape parameter must be finite and > 0
+pareto: shape must be > 0, got 0
 
 statement error
 SELECT dist_pareto_sample('nan'::DOUBLE,3);
 ----
-Scale parameter must be finite and > 0
+pareto: scale must be finite, got nan
 
 statement error
 SELECT dist_pareto_sample(1,'inf'::DOUBLE);
 ----
-Shape parameter must be finite and > 0
+pareto: shape must be finite, got inf

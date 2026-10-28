@@ -1,0 +1,250 @@
+# name: test/sql/sampling.test
+# description: sampling functions - samples lists, seeding, and sample moments for every distribution
+# group: [sql]
+
+require stochastic
+
+statement ok
+SELECT setseed(0.42);
+
+# --- samples(params..., n) returns a list of n samples ---
+
+query II
+SELECT len(dist_normal_samples(0, 1, 1000)), len(dist_poisson_samples(3, 0));
+----
+1000	0
+
+query I
+SELECT typeof(dist_poisson_samples(3, 2)) || ' ' || typeof(dist_bernoulli_samples(0.5, 2)) || ' ' || typeof(dist_normal_samples(0, 1, 2));
+----
+BIGINT[] BOOLEAN[] DOUBLE[]
+
+query I
+SELECT list_min(s) >= 1 AND list_max(s) <= 6 FROM (SELECT dist_uniform_int_samples(1, 6, 10000) AS s);
+----
+true
+
+# Each row gets its own list, and parameters may vary per row
+query II
+SELECT n, len(dist_exponential_samples(rate, n)) FROM (VALUES (1.0, 3), (2.0, 0), (0.5, 7)) t(rate, n) ORDER BY n;
+----
+0	0
+3	3
+7	7
+
+statement error
+SELECT dist_normal_samples(0, 1, -1);
+----
+normal: n must be between 0 and 10000000, got -1
+
+statement error
+SELECT dist_normal_samples(0, 1, 10000001);
+----
+normal: n must be between 0 and 10000000
+
+statement error
+SELECT dist_normal_samples(0, -1, 3);
+----
+normal: stddev must be > 0, got -1
+
+# --- setseed makes sampling reproducible, including in parallel ---
+
+statement ok
+SET threads = 8;
+
+statement ok
+SELECT setseed(0.25);
+
+statement ok
+CREATE TABLE a AS SELECT sum(dist_normal_sample(0, 1)) AS s, sum(dist_poisson_sample(3)) AS p FROM range(2000000);
+
+statement ok
+SELECT setseed(0.25);
+
+statement ok
+CREATE TABLE b AS SELECT sum(dist_normal_sample(0, 1)) AS s, sum(dist_poisson_sample(3)) AS p FROM range(2000000);
+
+query I
+SELECT a.s = b.s AND a.p = b.p FROM a, b;
+----
+true
+
+statement ok
+SELECT setseed(0.25);
+
+statement ok
+CREATE TABLE c AS SELECT dist_gamma_samples(2, 1, 5) AS s;
+
+statement ok
+SELECT setseed(0.25);
+
+query I
+SELECT s = dist_gamma_samples(2, 1, 5) FROM c;
+----
+true
+
+statement ok
+SET threads = 1;
+
+# --- Sample moments match the distribution for every sampler ---
+# Each check allows 6 standard errors for the mean and a relative tolerance for the variance.
+
+query I
+SELECT abs(avg(x) - dist_bernoulli_mean(0.3)) < 6 * dist_bernoulli_stddev(0.3) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_bernoulli_variance(0.3) - 1) < 0.1
+FROM (SELECT unnest(dist_bernoulli_samples(0.3, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_beta_mean(2.0, 5.0)) < 6 * dist_beta_stddev(2.0, 5.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_beta_variance(2.0, 5.0) - 1) < 0.1
+FROM (SELECT unnest(dist_beta_samples(2.0, 5.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_binomial_mean(20, 0.3)) < 6 * dist_binomial_stddev(20, 0.3) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_binomial_variance(20, 0.3) - 1) < 0.1
+FROM (SELECT unnest(dist_binomial_samples(20, 0.3, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_chi_squared_mean(4.0)) < 6 * dist_chi_squared_stddev(4.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_chi_squared_variance(4.0) - 1) < 0.1
+FROM (SELECT unnest(dist_chi_squared_samples(4.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_exponential_mean(2.0)) < 6 * dist_exponential_stddev(2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_exponential_variance(2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_exponential_samples(2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_extreme_value_mean(1.0, 2.0)) < 6 * dist_extreme_value_stddev(1.0, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_extreme_value_variance(1.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_extreme_value_samples(1.0, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_fisher_f_mean(5.0, 20.0)) < 6 * dist_fisher_f_stddev(5.0, 20.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_fisher_f_variance(5.0, 20.0) - 1) < 0.1
+FROM (SELECT unnest(dist_fisher_f_samples(5.0, 20.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_gamma_mean(3.0, 2.0)) < 6 * dist_gamma_stddev(3.0, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_gamma_variance(3.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_gamma_samples(3.0, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_geometric_mean(0.3)) < 6 * dist_geometric_stddev(0.3) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_geometric_variance(0.3) - 1) < 0.1
+FROM (SELECT unnest(dist_geometric_samples(0.3, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_laplace_mean(1.0, 2.0)) < 6 * dist_laplace_stddev(1.0, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_laplace_variance(1.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_laplace_samples(1.0, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_logistic_mean(1.0, 2.0)) < 6 * dist_logistic_stddev(1.0, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_logistic_variance(1.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_logistic_samples(1.0, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_lognormal_mean(0.0, 0.5)) < 6 * dist_lognormal_stddev(0.0, 0.5) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_lognormal_variance(0.0, 0.5) - 1) < 0.1
+FROM (SELECT unnest(dist_lognormal_samples(0.0, 0.5, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_negative_binomial_mean(5, 0.4)) < 6 * dist_negative_binomial_stddev(5, 0.4) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_negative_binomial_variance(5, 0.4) - 1) < 0.1
+FROM (SELECT unnest(dist_negative_binomial_samples(5, 0.4, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_normal_mean(3.0, 2.0)) < 6 * dist_normal_stddev(3.0, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_normal_variance(3.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_normal_samples(3.0, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_pareto_mean(1.0, 5.0)) < 6 * dist_pareto_stddev(1.0, 5.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_pareto_variance(1.0, 5.0) - 1) < 0.1
+FROM (SELECT unnest(dist_pareto_samples(1.0, 5.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_poisson_mean(4.5)) < 6 * dist_poisson_stddev(4.5) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_poisson_variance(4.5) - 1) < 0.1
+FROM (SELECT unnest(dist_poisson_samples(4.5, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_rayleigh_mean(2.0)) < 6 * dist_rayleigh_stddev(2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_rayleigh_variance(2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_rayleigh_samples(2.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_students_t_mean(10.0)) < 6 * dist_students_t_stddev(10.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_students_t_variance(10.0) - 1) < 0.1
+FROM (SELECT unnest(dist_students_t_samples(10.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_uniform_int_mean(1, 6)) < 6 * dist_uniform_int_stddev(1, 6) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_uniform_int_variance(1, 6) - 1) < 0.1
+FROM (SELECT unnest(dist_uniform_int_samples(1, 6, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_uniform_real_mean(-1.0, 3.0)) < 6 * dist_uniform_real_stddev(-1.0, 3.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_uniform_real_variance(-1.0, 3.0) - 1) < 0.1
+FROM (SELECT unnest(dist_uniform_real_samples(-1.0, 3.0, 200000))::DOUBLE AS x);
+----
+true
+
+query I
+SELECT abs(avg(x) - dist_weibull_mean(1.5, 2.0)) < 6 * dist_weibull_stddev(1.5, 2.0) / sqrt(count(*))
+   AND abs(var_samp(x) / dist_weibull_variance(1.5, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_weibull_samples(1.5, 2.0, 200000))::DOUBLE AS x);
+----
+true
+
+# Cauchy and Student's t with low df have no variance: check the median and quartiles instead
+query I
+SELECT abs(median(x) - 1.0) < 0.02 AND abs(quantile_cont(x, 0.75) - dist_cauchy_quantile(1.0, 2.0, 0.75)) < 0.05
+FROM (SELECT unnest(dist_cauchy_samples(1.0, 2.0, 200000)) AS x);
+----
+true
+
+query I
+SELECT abs(quantile_cont(x, 0.9) - dist_students_t_quantile(1.5, 0.9)) < 0.05
+FROM (SELECT unnest(dist_students_t_samples(1.5, 200000)) AS x);
+----
+true

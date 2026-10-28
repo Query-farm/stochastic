@@ -75,13 +75,13 @@ SELECT round(dist_geometric_quantile(0.5, 0.5), 6);
 query R
 SELECT round(dist_geometric_quantile(0.5, 0.95), 6);
 ----
-3.321928
+4.0
 
 # Test geometric quantile complement
 query R
 SELECT round(dist_geometric_quantile_complement(0.5, 0.05), 6);
 ----
-3.321928
+4.0
 
 # Test geometric hazard function
 query R

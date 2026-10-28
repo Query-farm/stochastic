@@ -1,0 +1,269 @@
+# name: test/sql/common_behavior.test
+# description: behavior shared by every distribution - errors, NULLs, undefined properties, aliases and metadata
+# group: [sql]
+
+require stochastic
+
+# --- Boost.Math errors become InvalidInputException naming the distribution ---
+
+statement error
+SELECT dist_normal_quantile(0, 1, 1.5);
+----
+Invalid Input Error: normal: Probability argument is 1.5, but must be >= 0 and <= 1
+
+statement error
+SELECT dist_beta_pdf(2, 5, 1.5);
+----
+Invalid Input Error: beta: x argument is 1.5, but must be >= 0 and <= 1
+
+# Overflow returns +/-infinity instead of raising an error
+query RR
+SELECT dist_normal_quantile(0, 1, 1.0), dist_normal_quantile(0, 1, 0.0);
+----
+inf	-inf
+
+query R
+SELECT dist_exponential_quantile(1, 1.0);
+----
+inf
+
+# --- Non-finite parameters are rejected ---
+
+statement error
+SELECT dist_normal_pdf(0, 'nan'::DOUBLE, 1);
+----
+normal: stddev must be finite, got nan
+
+statement error
+SELECT dist_normal_cdf('inf'::DOUBLE, 1, 0);
+----
+normal: mean must be finite, got inf
+
+statement error
+SELECT dist_gamma_mean('nan'::DOUBLE, 1);
+----
+gamma: shape must be finite, got nan
+
+statement error
+SELECT dist_uniform_real_sample(0, 'inf'::DOUBLE);
+----
+uniform_real: max must be finite, got inf
+
+# Evaluation points may be infinite
+query RR
+SELECT dist_normal_pdf(0, 1, 'inf'::DOUBLE), dist_normal_cdf(0, 1, '-inf'::DOUBLE);
+----
+0.0	0.0
+
+# --- Samplers reject parameters that would overflow BIGINT or never terminate ---
+
+statement error
+SELECT dist_poisson_sample(1e300);
+----
+poisson: parameters are too extreme to sample
+
+statement error
+SELECT dist_geometric_sample(0.0);
+----
+geometric: prob must be > 0, got 0
+
+statement error
+SELECT dist_geometric_sample(1e-300);
+----
+geometric: parameters are too extreme to sample
+
+statement error
+SELECT dist_negative_binomial_sample(1000000000000, 1e-12);
+----
+negative_binomial: parameters are too extreme to sample
+
+statement error
+SELECT dist_negative_binomial_sample(10, 0.0);
+----
+negative_binomial: prob must be > 0, got 0
+
+query I
+SELECT dist_poisson_sample(1e12) > 0;
+----
+true
+
+# --- Undefined properties return NULL ---
+
+query RRRRRR
+SELECT dist_cauchy_mean(0, 1), dist_cauchy_stddev(0, 1), dist_cauchy_variance(0, 1),
+       dist_cauchy_skewness(0, 1), dist_cauchy_kurtosis(0, 1), dist_cauchy_kurtosis_excess(0, 1);
+----
+NULL	NULL	NULL	NULL	NULL	NULL
+
+query RR
+SELECT dist_cauchy_median(0, 1), dist_cauchy_mode(0, 1);
+----
+0.0	0.0
+
+query RRR
+SELECT dist_students_t_mean(0.5), dist_students_t_variance(1.5), round(dist_students_t_variance(5), 6);
+----
+NULL	NULL	1.666667
+
+query RR
+SELECT dist_students_t_skewness(2.5), dist_students_t_skewness(5);
+----
+NULL	0.0
+
+query R
+SELECT dist_pareto_variance(1, 1.5);
+----
+NULL
+
+# Properties that were previously missing are now available
+query RR
+SELECT dist_binomial_mean(10, 0.5), round(dist_binomial_stddev(10, 0.5), 6);
+----
+5.0	1.581139
+
+query RR
+SELECT dist_negative_binomial_mean(10, 0.5), round(dist_negative_binomial_stddev(10, 0.5), 6);
+----
+10.0	4.472136
+
+query RR
+SELECT round(dist_weibull_mean(1.5, 1.0), 6), round(dist_logistic_stddev(0, 1), 6);
+----
+0.902745	1.813799
+
+# --- Discrete quantiles return the smallest x with CDF(x) >= p ---
+
+query RRR
+SELECT dist_poisson_quantile(5, 0.3), dist_poisson_quantile(5, 0.5), dist_poisson_quantile(5, 0.95);
+----
+4.0	5.0	9.0
+
+query II
+SELECT dist_binomial_quantile(10, 0.5, 0.2), dist_binomial_quantile(10, 0.5, 0.95);
+----
+4	8
+
+query R
+SELECT dist_geometric_quantile(0.5, 0.6);
+----
+1.0
+
+# --- pmf / log_pmf aliases for discrete distributions ---
+
+query RR
+SELECT dist_binomial_pmf(10, 0.5, 3), dist_binomial_pdf(10, 0.5, 3);
+----
+0.1171875	0.1171875
+
+query RR
+SELECT round(dist_poisson_pmf(5, 3), 6), round(dist_poisson_log_pmf(5, 3), 6) = round(ln(dist_poisson_pdf(5, 3)), 6);
+----
+0.140374	true
+
+query RR
+SELECT dist_bernoulli_pmf(0.3, 1), round(dist_geometric_pmf(0.5, 2), 6);
+----
+0.3	0.125
+
+query R
+SELECT dist_negative_binomial_pmf(10, 0.5, 5) = dist_negative_binomial_pdf(10, 0.5, 5);
+----
+true
+
+query RR
+SELECT round(dist_uniform_int_pmf(1, 6, 3), 6), round(dist_uniform_int_log_pmf(1, 6, 3), 6);
+----
+0.166667	-1.791759
+
+statement error
+SELECT dist_normal_pmf(0, 1, 0.5);
+----
+does not exist
+
+# --- NULL handling, for constant and varying inputs ---
+
+query R
+SELECT dist_normal_cdf(0, 1, x) FROM (VALUES (NULL::DOUBLE), (0.0)) t(x);
+----
+NULL
+0.5
+
+query R
+SELECT dist_normal_cdf(m, 1, 0) FROM (VALUES (NULL::DOUBLE), (0.0)) t(m);
+----
+NULL
+0.5
+
+query R
+SELECT dist_normal_mean(m, s) FROM (VALUES (1.0, NULL::DOUBLE), (NULL::DOUBLE, 1.0), (2.0, 1.0)) t(m, s);
+----
+NULL
+NULL
+2.0
+
+query I
+SELECT dist_normal_range(m, 1) FROM (VALUES (NULL::DOUBLE), (0.0)) t(m);
+----
+NULL
+[-inf, inf]
+
+query I
+SELECT dist_normal_sample(NULL, 1);
+----
+NULL
+
+query I
+SELECT dist_normal_samples(0, 1, NULL);
+----
+NULL
+
+# Varying parameters evaluate row by row
+query R
+SELECT round(dist_normal_cdf(m, 1, 0), 6) FROM (VALUES (0.0), (1.0), (-1.0)) t(m) ORDER BY m;
+----
+0.841345
+0.5
+0.158655
+
+# An invalid row reports the error even when other rows are valid
+statement error
+SELECT dist_normal_pdf(0, s, 0) FROM (VALUES (1.0), (-1.0)) t(s);
+----
+normal: stddev must be > 0, got -1
+
+# --- Metadata: every function is categorized ---
+
+query I
+SELECT count(*) FROM duckdb_functions()
+WHERE function_name LIKE 'dist\_%' ESCAPE '\' AND (len(categories) <> 3 OR categories[1] <> 'statistics');
+----
+0
+
+query II
+SELECT function_name, categories FROM duckdb_functions()
+WHERE function_name IN ('dist_normal_pdf', 'dist_normal_sample', 'dist_poisson_mean', 'dist_gamma_quantile')
+ORDER BY function_name;
+----
+dist_gamma_quantile	[statistics, quantile, gamma]
+dist_normal_pdf	[statistics, density, normal]
+dist_normal_sample	[statistics, sampling, normal]
+dist_poisson_mean	[statistics, property, poisson]
+
+query I
+SELECT count(*) FROM duckdb_functions()
+WHERE function_name LIKE 'dist\_%' ESCAPE '\' AND (description IS NULL OR len(examples) = 0);
+----
+0
+
+# Every distribution provides the same core set of functions
+query I
+SELECT count(*) FROM (
+    SELECT regexp_extract(function_name, '^dist_(.*)_mean$', 1) AS dist
+    FROM duckdb_functions() WHERE function_name LIKE 'dist\_%\_mean' ESCAPE '\'
+) d, (VALUES ('sample'), ('samples'), ('pdf'), ('log_pdf'), ('cdf'), ('cdf_complement'), ('log_cdf'),
+             ('log_cdf_complement'), ('quantile'), ('quantile_complement'), ('hazard'), ('chf'), ('mean'),
+             ('stddev'), ('variance'), ('mode'), ('median'), ('skewness'), ('kurtosis'), ('kurtosis_excess'),
+             ('range'), ('support')) f(fn)
+WHERE NOT EXISTS (SELECT 1 FROM duckdb_functions() WHERE function_name = 'dist_' || dist || '_' || fn);
+----
+0

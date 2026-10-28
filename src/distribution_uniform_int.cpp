@@ -1,16 +1,10 @@
 #include "utils.hpp"
 
-#include "distribution_traits.hpp"
 #include <cmath>
 
 namespace duckdb {
 
-#define DISTRIBUTION_SHORT_NAME "uniform_int"
-#define DISTRIBUTION_TEXT       string(string(DISTRIBUTION_SHORT_NAME) + " distribution")
-#define DISTRIBUTION_NAME       uniform_int_distribution
-#define DISTRIBUTION            DiscreteUniformDistribution
-#define SAMPLE_DISTRIBUTION     std::uniform_int_distribution<int64_t>
-#define REGISTER                RegisterFunction<DISTRIBUTION>
+namespace {
 
 // Analytics must describe the same inclusive integer support as the sampler.
 // Keep the existing DOUBLE bound arguments, but reject values that cannot be
@@ -127,181 +121,129 @@ private:
 	double count;
 };
 
-template <typename DistType>
-struct distribution_traits_base {
-	using param1_t = double;
-	using param2_t = double;
-	using return_t = double;
-
+struct UniformIntSpec : DistributionSpecBase {
+	static constexpr const char *name = "uniform_int";
+	static constexpr const char *display_name = "discrete uniform";
+	static constexpr bool discrete = true;
+	static constexpr bool check_sample_range = false;
+	using params = std::tuple<double, double>;
 	static constexpr std::array<const char *, 2> param_names = {"min", "max"};
-	static constexpr const char *prefix = DISTRIBUTION_SHORT_NAME;
+	using boost_type = DiscreteUniformDistribution;
+	using sampler_type = std::uniform_int_distribution<int64_t>;
+	using sample_t = int64_t;
+	using quantile_t = int64_t;
+	static constexpr const char *example_params = "1, 6";
+	static constexpr const char *example_x = "3";
 
-	static std::vector<LogicalType> LogicalParamTypes() {
-		return {logical_type_map<param1_t>::Get(), logical_type_map<param2_t>::Get()};
-	}
-
-	static void ValidateParameters(param1_t min, param2_t max) {
+	static void Validate(double min, double max) {
 		DiscreteUniformDistribution::Validate(min, max);
 	}
 };
 
-#define DEFINE_DIST_TRAITS(DIST)                                                                                       \
-	template <>                                                                                                        \
-	struct distribution_traits<DIST> : public distribution_traits_base<DIST> {};
+} // namespace
 
-DEFINE_DIST_TRAITS(DISTRIBUTION);
-DEFINE_DIST_TRAITS(SAMPLE_DISTRIBUTION);
+void Load_uniform_int_distribution(ExtensionLoader &loader) {
+	using Spec = UniformIntSpec;
+	using Dist = DiscreteUniformDistribution;
+	using X = std::tuple<int64_t>;
+	using P = std::tuple<double>;
+	const vector<std::pair<string, LogicalType>> x_param = {{"x", LogicalType::BIGINT}};
+	const vector<std::pair<string, LogicalType>> p_param = {{"p", LogicalType::DOUBLE}};
+	const string text = "discrete uniform distribution";
 
-#define CONCAT(a, b)            a##b
-#define EXPAND_AND_CONCAT(a, b) CONCAT(a, b)
+	RegisterSampling<Spec>(loader);
 
-#define LOAD_DISTRIBUTION_FN void EXPAND_AND_CONCAT(Load_, DISTRIBUTION_NAME)(ExtensionLoader & loader)
-
-LOAD_DISTRIBUTION_FN {
-	vector<std::pair<string, LogicalType>> param_names_quantile = {{"p", LogicalType::DOUBLE}};
-	vector<std::pair<string, LogicalType>> param_names_unary = {{"x", LogicalType::BIGINT}};
-
-	// x-parameter functions (pdf, cdf, etc.) where x is BIGINT
-	auto make_unary = [](auto func) {
-		return [func](DataChunk &args, ExpressionState &state, Vector &result) {
-			DistributionCallBinaryUnary<DISTRIBUTION, int64_t>(args, state, result, func);
-		};
+	auto pmf = [](const Dist &dist, int64_t x) {
+		return dist.Pdf(x);
 	};
-
-	// p-parameter functions (quantile) where p is DOUBLE
-	auto make_unary_p = [](auto func) {
-		return [func](DataChunk &args, ExpressionState &state, Vector &result) {
-			DistributionCallBinaryUnary<DISTRIBUTION, double>(args, state, result, func);
-		};
+	auto log_pmf = [](const Dist &dist, int64_t x) {
+		return std::log(dist.Pdf(x));
 	};
+	for (auto name : {"pdf", "pmf"}) {
+		RegisterEvaluation<Spec, double, X>(loader, name, pmf,
+		                                    {"Computes the probability mass function (PMF) of the " + text +
+		                                         ", P(X = x) on the inclusive integer support [min, max].",
+		                                     "1, 6, 3", "density"},
+		                                    x_param);
+	}
+	for (auto name : {"log_pdf", "log_pmf"}) {
+		RegisterEvaluation<Spec, double, X>(
+		    loader, name, log_pmf,
+		    {"Computes the natural logarithm of the probability mass function (PMF) of the " + text + ".", "1, 6, 3",
+		     "density"},
+		    x_param);
+	}
 
-	auto make_none = [](auto func) {
-		return [func](DataChunk &args, ExpressionState &state, Vector &result) {
-			DistributionCallBinaryNone<DISTRIBUTION>(args, state, result,
-			                                         [func](Vector &result, const auto &dist) { return func(dist); });
-		};
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "cdf", [](const Dist &dist, int64_t x) { return dist.Cdf(x); },
+	    {"Computes the cumulative distribution function (CDF) of the " + text + ", P(X <= x).", "1, 6, 3",
+	     "cumulative"},
+	    x_param);
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "cdf_complement", [](const Dist &dist, int64_t x) { return dist.Survival(x); },
+	    {"Computes the survival function of the " + text + ", P(X > x).", "1, 6, 3", "cumulative"}, x_param);
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "log_cdf", [](const Dist &dist, int64_t x) { return std::log(dist.Cdf(x)); },
+	    {"Computes the natural logarithm of the cumulative distribution function (CDF) of the " + text + ".", "1, 6, 3",
+	     "cumulative"},
+	    x_param);
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "log_cdf_complement", [](const Dist &dist, int64_t x) { return std::log(dist.Survival(x)); },
+	    {"Computes the natural logarithm of the survival function of the " + text + ", log P(X > x).", "1, 6, 3",
+	     "cumulative"},
+	    x_param);
+
+	RegisterEvaluation<Spec, int64_t, P>(
+	    loader, "quantile", [](const Dist &dist, double p) { return dist.Quantile(p); },
+	    {"Computes the quantile function (inverse CDF) of the " + text +
+	         ". Returns the smallest x with P(X <= x) >= p, using the exact binary DOUBLE probability. At p = 0, "
+	         "returns min.",
+	     "1, 6, 0.95", "quantile"},
+	    p_param);
+	RegisterEvaluation<Spec, int64_t, P>(
+	    loader, "quantile_complement", [](const Dist &dist, double p) { return dist.Quantile(p, true); },
+	    {"Computes the complementary quantile function of the " + text +
+	         ". Returns the smallest x with P(X > x) <= p, using the exact binary DOUBLE probability. At p = 1, "
+	         "returns min.",
+	     "1, 6, 0.05", "quantile"},
+	    p_param);
+
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "hazard", [](const Dist &dist, int64_t x) { return dist.Hazard(x); },
+	    {"Computes the discrete hazard P(X = x) / P(X >= x) of the " + text + ". Undefined above max.", "1, 6, 3",
+	     "hazard"},
+	    x_param);
+	RegisterEvaluation<Spec, double, X>(
+	    loader, "chf", [](const Dist &dist, int64_t x) { return -std::log(dist.Survival(x)); },
+	    {"Computes the cumulative hazard function of the " + text + ".", "1, 6, 3", "hazard"}, x_param);
+
+	RegisterEvaluation<Spec, double>(loader, "mean", [](const Dist &dist) { return dist.Mean(); },
+	                                 {"Returns the mean of the " + text + ".", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(loader, "stddev", [](const Dist &dist) { return std::sqrt(dist.Variance()); },
+	                                 {"Returns the standard deviation of the " + text + ".", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(loader, "variance", [](const Dist &dist) { return dist.Variance(); },
+	                                 {"Returns the variance of the " + text + ".", "1, 6", "property"});
+	RegisterEvaluation<Spec, int64_t>(
+	    loader, "mode", [](const Dist &dist) { return dist.lower; },
+	    {"Returns min as a representative mode; every integer in the support has equal mass.", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(
+	    loader, "median", [](const Dist &dist) { return dist.Mean(); },
+	    {"Returns the median of the " + text + ", which equals its mean.", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(loader, "skewness", [](const Dist &dist) { return dist.Skewness(); },
+	                                 {"Returns the skewness of the " + text + ".", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(loader, "kurtosis", [](const Dist &dist) { return dist.KurtosisExcess() + 3.0; },
+	                                 {"Returns the kurtosis of the " + text + ".", "1, 6", "property"});
+	RegisterEvaluation<Spec, double>(loader, "kurtosis_excess", [](const Dist &dist) { return dist.KurtosisExcess(); },
+	                                 {"Returns the excess kurtosis of the " + text + ".", "1, 6", "property"});
+
+	using Interval = std::pair<int64_t, int64_t>;
+	auto interval = [](const Dist &dist) -> Interval {
+		return {dist.lower, dist.upper};
 	};
-
-	REGISTER(
-	    loader, "sample", FunctionStability::VOLATILE, LogicalType::BIGINT,
-	    [](DataChunk &args, ExpressionState &state, Vector &result) {
-		    DistributionSampleBinary<SAMPLE_DISTRIBUTION, int64_t>(args, state, result);
-	    },
-	    "Generates random samples from the " + DISTRIBUTION_TEXT + " with specified parameters.", "sample(1, 6)");
-
-	REGISTER(loader, "pdf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return dist.Pdf(x); }),
-	         "Computes the probability mass function (PMF) of the " + DISTRIBUTION_TEXT +
-	             ". Returns P(X = x) on the inclusive integer support for a " + DISTRIBUTION_TEXT +
-	             " with specified parameters.",
-	         "pdf(1, 6, 3)", param_names_unary);
-
-	REGISTER(loader, "log_pdf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return std::log(dist.Pdf(x)); }),
-	         "Computes the natural logarithm of the probability mass function (log-PMF) of the " + DISTRIBUTION_TEXT +
-	             ". Useful for numerical stability when dealing with very small probabilities.",
-	         "log_pdf(1, 6, 3)", param_names_unary);
-
-	// === CUMULATIVE DISTRIBUTION FUNCTIONS ===
-	REGISTER(loader, "cdf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return dist.Cdf(x); }),
-	         "Computes the cumulative distribution function (CDF) of the " + DISTRIBUTION_TEXT +
-	             ". Returns the "
-	             "probability that a random variable X is less than or equal to x.",
-	         "cdf(1, 6, 3)", param_names_unary);
-
-	REGISTER(loader, "cdf_complement", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return dist.Survival(x); }),
-	         "Computes the complementary cumulative distribution function (1 - CDF) of the " + DISTRIBUTION_TEXT +
-	             ". Returns the probability that X > x, equivalent to the survival function.",
-	         "cdf_complement(1, 6, 3)", param_names_unary);
-
-	REGISTER(loader, "log_cdf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return std::log(dist.Cdf(x)); }),
-	         "Computes the natural logarithm of the cumulative distribution function (CDF) of the " +
-	             DISTRIBUTION_TEXT +
-	             ". "
-	             "Returns the logarithm of the probability that a random variable X is less than or equal to x.",
-	         "log_cdf(1, 6, 3)", param_names_unary);
-
-	REGISTER(
-	    loader, "log_cdf_complement", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	    make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return std::log(dist.Survival(x)); }),
-	    "Computes the natural logarithm of the complementary cumulative distribution function (1 - CDF) of the " +
-	        DISTRIBUTION_TEXT +
-	        ". Returns the logarithm of the probability that X > x, equivalent to the survival function.",
-	    "log_cdf_complement(1, 6, 3)", param_names_unary);
-
-	// === QUANTILE FUNCTIONS ===
-	REGISTER(loader, "quantile", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_unary_p([](const auto &dist, auto p) -> int64_t { return dist.Quantile(p); }),
-	         "Computes the quantile function (inverse CDF) of the " + DISTRIBUTION_TEXT +
-	             ". Returns the value x "
-	             "with P(X <= x) >= p, using the exact binary DOUBLE probability. At p = 0, returns min.",
-	         "quantile(1, 6, 0.95)", param_names_quantile);
-
-	REGISTER(loader, "quantile_complement", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_unary_p([](const auto &dist, auto p) -> int64_t { return dist.Quantile(p, true); }),
-	         "Computes the complementary quantile function of the " + DISTRIBUTION_TEXT +
-	             ". Returns the value x "
-	             "with P(X > x) <= p, using the exact binary DOUBLE probability. At p = 1, returns min.",
-	         "quantile_complement(1, 6, 0.05)", param_names_quantile);
-
-	REGISTER(loader, "hazard", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return dist.Hazard(x); }),
-	         "Computes the discrete hazard P(X = x) / P(X >= x). Undefined above max.", "hazard(1, 6, 3)",
-	         param_names_unary);
-
-	REGISTER(
-	    loader, "chf", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	    make_unary([](const auto &dist, auto x) -> DISTRIBUTION::value_type { return -std::log(dist.Survival(x)); }),
-	    "Computes the cumulative hazard function of the " + DISTRIBUTION_TEXT + ".", "chf(1, 6, 3)", param_names_unary);
-
-	// === DISTRIBUTION PROPERTIES ===
-
-	REGISTER(loader, "mean", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) -> double { return dist.Mean(); }),
-	         "Returns the mean (μ) of the " + DISTRIBUTION_TEXT + ", which is the first moment.", "mean(1, 6)");
-
-	REGISTER(loader, "stddev", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) -> double { return std::sqrt(dist.Variance()); }),
-	         "Returns the standard deviation (σ) of the " + DISTRIBUTION_TEXT + ".", "stddev(1, 6)");
-
-	REGISTER(loader, "variance", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) -> double { return dist.Variance(); }),
-	         "Returns the variance (σ²) of the " + DISTRIBUTION_TEXT + ".", "variance(1, 6)");
-
-	REGISTER(loader, "mode", FunctionStability::CONSISTENT, LogicalType::BIGINT,
-	         make_none([](const auto &dist) -> int64_t { return dist.lower; }),
-	         "Returns min as a representative mode; every integer in the support has equal mass.", "mode(1, 6)");
-
-	REGISTER(loader, "median", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) -> double { return dist.Mean(); }),
-	         "Returns the median (50th percentile) of the " + DISTRIBUTION_TEXT + ", which equals the mean.",
-	         "median(1, 6)");
-
-	REGISTER(loader, "skewness", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return dist.Skewness(); }),
-	         "Returns the skewness of the " + DISTRIBUTION_TEXT + ".", "skewness(1, 6)");
-
-	REGISTER(loader, "kurtosis", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return dist.KurtosisExcess() + 3.0; }),
-	         "Returns the kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis(1, 6)");
-
-	REGISTER(loader, "kurtosis_excess", FunctionStability::CONSISTENT, LogicalType::DOUBLE,
-	         make_none([](const auto &dist) { return dist.KurtosisExcess(); }),
-	         "Returns the excess kurtosis of the " + DISTRIBUTION_TEXT + ".", "kurtosis_excess(1, 6)");
-
-	REGISTER(loader, "range", FunctionStability::CONSISTENT, LogicalType::ARRAY(LogicalType::BIGINT, 2),
-	         make_none([](const auto &dist) -> std::pair<int64_t, int64_t> {
-		         return {dist.lower, dist.upper};
-	         }),
-	         "Returns the range of the " + DISTRIBUTION_TEXT + ".", "range(1, 6)");
-
-	REGISTER(loader, "support", FunctionStability::CONSISTENT, LogicalType::ARRAY(LogicalType::BIGINT, 2),
-	         make_none([](const auto &dist) -> std::pair<int64_t, int64_t> {
-		         return {dist.lower, dist.upper};
-	         }),
-	         "Returns the support of the " + DISTRIBUTION_TEXT + ".", "support(1, 6)");
+	RegisterEvaluation<Spec, Interval>(loader, "range", interval,
+	                                   {"Returns the range of the " + text + " as [min, max].", "1, 6", "property"});
+	RegisterEvaluation<Spec, Interval>(loader, "support", interval,
+	                                   {"Returns the support of the " + text + " as [min, max].", "1, 6", "property"});
 }
-} // end namespace duckdb
+
+} // namespace duckdb

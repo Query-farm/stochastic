@@ -129,4 +129,4 @@ true
 statement error
 SELECT dist_cauchy_pdf(0.0, 0.0, 1.0);
 ----
-cauchy: Scale must be > 0
+cauchy: scale must be > 0, got 0

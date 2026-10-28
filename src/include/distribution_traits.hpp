@@ -30,14 +30,24 @@ struct logical_type_map<int64_t> {
 };
 
 template <>
+struct logical_type_map<bool> {
+	static LogicalType Get() {
+		return LogicalType::BOOLEAN;
+	}
+};
+
+template <>
+struct logical_type_map<std::pair<int64_t, int64_t>> {
+	static LogicalType Get() {
+		return LogicalType::ARRAY(LogicalType::BIGINT, 2);
+	}
+};
+
+template <>
 struct logical_type_map<std::pair<double, double>> {
 	static LogicalType Get() {
 		return LogicalType::ARRAY(LogicalType::DOUBLE, 2);
 	}
 };
-
-// --- Distribution parameter traits ---
-template <typename Distribution>
-struct distribution_traits; // Primary template left undefined
 
 } // namespace duckdb
