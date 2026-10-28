@@ -1,0 +1,83 @@
+# name: test/sql/kolmogorov_smirnov.test
+# description: Kolmogorov-Smirnov (limiting distribution of sqrt(n) D_n, scaled by 1/sqrt(n)) distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_pdf(10.0, 0.3) - (3.895520981091718)) <= 1e-7 * greatest(1, abs(3.895520981091718));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_cdf(10.0, 0.3) - (0.6708952109021848)) <= 1e-7 * greatest(1, abs(0.6708952109021848));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_cdf_complement(10.0, 0.3) - (0.3291047890978151)) <= 1e-7 * greatest(1, abs(0.3291047890978151));
+----
+true
+
+query I
+SELECT abs(exp(dist_kolmogorov_smirnov_log_pdf(10.0, 0.3)) - (3.895520981091718)) <= 1e-7 * greatest(1, abs(3.895520981091718));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_quantile(10.0, 0.95) - (0.4294684987434775)) <= 1e-7 * greatest(1, abs(0.4294684987434775));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_quantile_complement(10.0, 0.05) - (0.42946849874347753)) <= 1e-7 * greatest(1, abs(0.42946849874347753));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_cdf(10.0, dist_kolmogorov_smirnov_quantile(10.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_mean(10.0) - (0.27471691419564387)) <= 1e-7 * greatest(1, abs(0.27471691419564387));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_variance(10.0) - (0.006777320397410136)) <= 1e-7 * greatest(1, abs(0.006777320397410136));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_median(10.0) - (0.2617017365723163)) <= 1e-7 * greatest(1, abs(0.2617017365723163));
+----
+true
+
+query I
+SELECT abs(dist_kolmogorov_smirnov_hazard(10.0, 0.3) - (11.836719215696093)) <= 1e-7 * greatest(1, abs(11.836719215696093));
+----
+true
+
+query I
+SELECT typeof(dist_kolmogorov_smirnov_sample(10.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_kolmogorov_smirnov_mean(10.0)) < 6 * dist_kolmogorov_smirnov_stddev(10.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_kolmogorov_smirnov_samples(10.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_kolmogorov_smirnov_variance(10.0) - 1) < 0.1
+FROM (SELECT unnest(dist_kolmogorov_smirnov_samples(10.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_kolmogorov_smirnov_quantile(10.0, 0.8)) < 0.02 * greatest(1, abs(dist_kolmogorov_smirnov_quantile(10.0, 0.8)))
+FROM (SELECT unnest(dist_kolmogorov_smirnov_samples(10.0, 200000)) AS s);
+----
+true

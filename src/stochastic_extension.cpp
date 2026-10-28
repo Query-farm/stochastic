@@ -14,52 +14,50 @@
 
 namespace duckdb {
 
-void Load_bernoulli_distribution(ExtensionLoader &loader);
-void Load_beta_distribution(ExtensionLoader &loader);
-void Load_cauchy_distribution(ExtensionLoader &loader);
-void Load_binomial_distribution(ExtensionLoader &loader);
-void Load_chi_squared_distribution(ExtensionLoader &loader);
-void Load_exponential_distribution(ExtensionLoader &loader);
-void Load_extreme_value_distribution(ExtensionLoader &loader);
-void Load_fisher_f_distribution(ExtensionLoader &loader);
-void Load_gamma_distribution(ExtensionLoader &loader);
-void Load_geometric_distribution(ExtensionLoader &loader);
-void Load_laplace_distribution(ExtensionLoader &loader);
-void Load_logistic_distribution(ExtensionLoader &loader);
-void Load_lognormal_distribution(ExtensionLoader &loader);
-void Load_negative_binomial_distribution(ExtensionLoader &loader);
-void Load_normal_distribution(ExtensionLoader &loader);
-void Load_pareto_distribution(ExtensionLoader &loader);
-void Load_poisson_distribution(ExtensionLoader &loader);
-void Load_rayleigh_distribution(ExtensionLoader &loader);
-void Load_students_t_distribution(ExtensionLoader &loader);
-void Load_uniform_int_distribution(ExtensionLoader &loader);
-void Load_uniform_real_distribution(ExtensionLoader &loader);
-void Load_weibull_distribution(ExtensionLoader &loader);
+#define STOCHASTIC_DISTRIBUTIONS(X)                                                                                    \
+	X(arcsine)                                                                                                         \
+	X(bernoulli)                                                                                                       \
+	X(beta)                                                                                                            \
+	X(binomial)                                                                                                        \
+	X(cauchy)                                                                                                          \
+	X(chi_squared)                                                                                                     \
+	X(exponential)                                                                                                     \
+	X(extreme_value)                                                                                                   \
+	X(fisher_f)                                                                                                        \
+	X(gamma)                                                                                                           \
+	X(geometric)                                                                                                       \
+	X(hypergeometric)                                                                                                  \
+	X(inverse_chi_squared)                                                                                             \
+	X(inverse_gamma)                                                                                                   \
+	X(inverse_gaussian)                                                                                                \
+	X(kolmogorov_smirnov)                                                                                              \
+	X(laplace)                                                                                                         \
+	X(logistic)                                                                                                        \
+	X(lognormal)                                                                                                       \
+	X(negative_binomial)                                                                                               \
+	X(non_central_beta)                                                                                                \
+	X(non_central_chi_squared)                                                                                         \
+	X(non_central_f)                                                                                                   \
+	X(non_central_t)                                                                                                   \
+	X(normal)                                                                                                          \
+	X(pareto)                                                                                                          \
+	X(poisson)                                                                                                         \
+	X(rayleigh)                                                                                                        \
+	X(skew_normal)                                                                                                     \
+	X(students_t)                                                                                                      \
+	X(triangular)                                                                                                      \
+	X(uniform_int)                                                                                                     \
+	X(uniform_real)                                                                                                    \
+	X(weibull)
+
+#define DECLARE_LOAD(NAME) void Load_##NAME##_distribution(ExtensionLoader &loader);
+STOCHASTIC_DISTRIBUTIONS(DECLARE_LOAD)
+#undef DECLARE_LOAD
 
 static void LoadInternal(ExtensionLoader &loader) {
-	Load_bernoulli_distribution(loader);
-	Load_beta_distribution(loader);
-	Load_binomial_distribution(loader);
-	Load_cauchy_distribution(loader);
-	Load_chi_squared_distribution(loader);
-	Load_exponential_distribution(loader);
-	Load_extreme_value_distribution(loader);
-	Load_fisher_f_distribution(loader);
-	Load_gamma_distribution(loader);
-	Load_geometric_distribution(loader);
-	Load_laplace_distribution(loader);
-	Load_logistic_distribution(loader);
-	Load_lognormal_distribution(loader);
-	Load_negative_binomial_distribution(loader);
-	Load_normal_distribution(loader);
-	Load_pareto_distribution(loader);
-	Load_poisson_distribution(loader);
-	Load_rayleigh_distribution(loader);
-	Load_students_t_distribution(loader);
-	Load_uniform_int_distribution(loader);
-	Load_uniform_real_distribution(loader);
-	Load_weibull_distribution(loader);
+#define CALL_LOAD(NAME) Load_##NAME##_distribution(loader);
+	STOCHASTIC_DISTRIBUTIONS(CALL_LOAD)
+#undef CALL_LOAD
 
 	QueryFarmSendTelemetry(loader, "stochastic", STOCHASTIC_VERSION);
 }

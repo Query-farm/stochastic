@@ -1,0 +1,88 @@
+# name: test/sql/skew_normal.test
+# description: skew normal distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_skew_normal_pdf(0.0, 1.0, 4.0, 0.5) - (0.6881115882520658)) <= 1e-8 * greatest(1, abs(0.6881115882520658));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_cdf(0.0, 1.0, 4.0, 0.5) - (0.3843496785881372)) <= 1e-8 * greatest(1, abs(0.3843496785881372));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_cdf_complement(0.0, 1.0, 4.0, 0.5) - (0.6156503214118628)) <= 1e-8 * greatest(1, abs(0.6156503214118628));
+----
+true
+
+query I
+SELECT abs(exp(dist_skew_normal_log_pdf(0.0, 1.0, 4.0, 0.5)) - (0.6881115882520658)) <= 1e-8 * greatest(1, abs(0.6881115882520658));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_quantile(0.0, 1.0, 4.0, 0.95) - (1.9599639845400536)) <= 1e-8 * greatest(1, abs(1.9599639845400536));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_quantile_complement(0.0, 1.0, 4.0, 0.05) - (1.9599639845400543)) <= 1e-8 * greatest(1, abs(1.9599639845400543));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_cdf(0.0, 1.0, 4.0, dist_skew_normal_quantile(0.0, 1.0, 4.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_mean(0.0, 1.0, 4.0) - (0.7740617226446519)) <= 1e-8 * greatest(1, abs(0.7740617226446519));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_variance(0.0, 1.0, 4.0) - (0.40082844953639396)) <= 1e-8 * greatest(1, abs(0.40082844953639396));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_median(0.0, 1.0, 4.0) - (0.6742354765650023)) <= 1e-8 * greatest(1, abs(0.6742354765650023));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_skewness(0.0, 1.0, 4.0) - (0.7844267553823128)) <= 1e-6 * greatest(1, abs(0.7844267553823128));
+----
+true
+
+query I
+SELECT abs(dist_skew_normal_hazard(0.0, 1.0, 4.0, 0.5) - (1.1176987395605162)) <= 1e-8 * greatest(1, abs(1.1176987395605162));
+----
+true
+
+query I
+SELECT typeof(dist_skew_normal_sample(0.0, 1.0, 4.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_skew_normal_mean(0.0, 1.0, 4.0)) < 6 * dist_skew_normal_stddev(0.0, 1.0, 4.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_skew_normal_samples(0.0, 1.0, 4.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_skew_normal_variance(0.0, 1.0, 4.0) - 1) < 0.1
+FROM (SELECT unnest(dist_skew_normal_samples(0.0, 1.0, 4.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_skew_normal_quantile(0.0, 1.0, 4.0, 0.8)) < 0.02 * greatest(1, abs(dist_skew_normal_quantile(0.0, 1.0, 4.0, 0.8)))
+FROM (SELECT unnest(dist_skew_normal_samples(0.0, 1.0, 4.0, 200000)) AS s);
+----
+true

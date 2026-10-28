@@ -1,0 +1,78 @@
+# name: test/sql/hypergeometric.test
+# description: hypergeometric distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_hypergeometric_pdf(10, 5, 50, 2) - (0.2098397175706545)) <= 1e-8 * greatest(1, abs(0.2098397175706545));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_cdf(10, 5, 50, 2) - (0.9517396968037909)) <= 1e-8 * greatest(1, abs(0.9517396968037909));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_cdf_complement(10, 5, 50, 2) - (0.0482603031962091)) <= 1e-8 * greatest(1, abs(0.0482603031962091));
+----
+true
+
+query I
+SELECT abs(exp(dist_hypergeometric_log_pdf(10, 5, 50, 2)) - (0.2098397175706545)) <= 1e-8 * greatest(1, abs(0.2098397175706545));
+----
+true
+
+query II
+SELECT dist_hypergeometric_quantile(10, 5, 50, 0.95), dist_hypergeometric_quantile_complement(10, 5, 50, 0.05);
+----
+2	2
+
+query I
+SELECT abs(dist_hypergeometric_mean(10, 5, 50) - (1.0)) <= 1e-8 * greatest(1, abs(1.0));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_variance(10, 5, 50) - (0.7346938775510204)) <= 1e-8 * greatest(1, abs(0.7346938775510204));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_median(10, 5, 50) - (1.0)) <= 1e-8 * greatest(1, abs(1.0));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_skewness(10, 5, 50) - (0.5833333333333334)) <= 1e-6 * greatest(1, abs(0.5833333333333334));
+----
+true
+
+query I
+SELECT abs(dist_hypergeometric_hazard(10, 5, 50, 2) - (4.3480812111254545)) <= 1e-8 * greatest(1, abs(4.3480812111254545));
+----
+true
+
+query I
+SELECT typeof(dist_hypergeometric_sample(10, 5, 50));
+----
+BIGINT
+
+query I
+SELECT abs(avg(s) - dist_hypergeometric_mean(10, 5, 50)) < 6 * dist_hypergeometric_stddev(10, 5, 50) / sqrt(count(*))
+FROM (SELECT unnest(dist_hypergeometric_samples(10, 5, 50, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_hypergeometric_variance(10, 5, 50) - 1) < 0.1
+FROM (SELECT unnest(dist_hypergeometric_samples(10, 5, 50, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_hypergeometric_quantile(10, 5, 50, 0.8)) < 0.02 * greatest(1, abs(dist_hypergeometric_quantile(10, 5, 50, 0.8)))
+FROM (SELECT unnest(dist_hypergeometric_samples(10, 5, 50, 200000)) AS s);
+----
+true

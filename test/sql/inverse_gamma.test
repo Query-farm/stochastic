@@ -1,0 +1,83 @@
+# name: test/sql/inverse_gamma.test
+# description: inverse gamma distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_inverse_gamma_pdf(3.0, 2.0, 0.5) - (1.1722008888789872)) <= 1e-8 * greatest(1, abs(1.1722008888789872));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_cdf(3.0, 2.0, 0.5) - (0.2381033055535443)) <= 1e-8 * greatest(1, abs(0.2381033055535443));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_cdf_complement(3.0, 2.0, 0.5) - (0.7618966944464557)) <= 1e-8 * greatest(1, abs(0.7618966944464557));
+----
+true
+
+query I
+SELECT abs(exp(dist_inverse_gamma_log_pdf(3.0, 2.0, 0.5)) - (1.1722008888789872)) <= 1e-8 * greatest(1, abs(1.1722008888789872));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_quantile(3.0, 2.0, 0.95) - (2.445910382133402)) <= 1e-8 * greatest(1, abs(2.445910382133402));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_quantile_complement(3.0, 2.0, 0.05) - (2.4459103821334023)) <= 1e-8 * greatest(1, abs(2.4459103821334023));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_cdf(3.0, 2.0, dist_inverse_gamma_quantile(3.0, 2.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_mean(3.0, 2.0) - (1.0)) <= 1e-8 * greatest(1, abs(1.0));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_variance(3.0, 2.0) - (1.0)) <= 1e-8 * greatest(1, abs(1.0));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gamma_median(3.0, 2.0) - (0.7479262863802241)) <= 1e-8 * greatest(1, abs(0.7479262863802241));
+----
+true
+
+# Undefined for these parameters
+query R
+SELECT dist_inverse_gamma_skewness(3.0, 2.0);
+----
+NULL
+
+query I
+SELECT abs(dist_inverse_gamma_hazard(3.0, 2.0, 0.5) - (1.538529957438169)) <= 1e-8 * greatest(1, abs(1.538529957438169));
+----
+true
+
+query I
+SELECT typeof(dist_inverse_gamma_sample(3.0, 2.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_inverse_gamma_mean(3.0, 2.0)) < 6 * dist_inverse_gamma_stddev(3.0, 2.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_inverse_gamma_samples(3.0, 2.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_inverse_gamma_quantile(3.0, 2.0, 0.8)) < 0.02 * greatest(1, abs(dist_inverse_gamma_quantile(3.0, 2.0, 0.8)))
+FROM (SELECT unnest(dist_inverse_gamma_samples(3.0, 2.0, 200000)) AS s);
+----
+true

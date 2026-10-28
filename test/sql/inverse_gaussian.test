@@ -1,0 +1,88 @@
+# name: test/sql/inverse_gaussian.test
+# description: inverse gaussian distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_inverse_gaussian_pdf(1.0, 2.0, 0.5) - (0.9678828980765735)) <= 1e-8 * greatest(1, abs(0.9678828980765735));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_cdf(1.0, 2.0, 0.5) - (0.23235718919184303)) <= 1e-8 * greatest(1, abs(0.23235718919184303));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_cdf_complement(1.0, 2.0, 0.5) - (0.767642810808157)) <= 1e-8 * greatest(1, abs(0.767642810808157));
+----
+true
+
+query I
+SELECT abs(exp(dist_inverse_gaussian_log_pdf(1.0, 2.0, 0.5)) - (0.9678828980765735)) <= 1e-8 * greatest(1, abs(0.9678828980765735));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_quantile(1.0, 2.0, 0.95) - (2.3773929962780707)) <= 1e-8 * greatest(1, abs(2.3773929962780707));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_quantile_complement(1.0, 2.0, 0.05) - (2.3773929962780724)) <= 1e-8 * greatest(1, abs(2.3773929962780724));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_cdf(1.0, 2.0, dist_inverse_gaussian_quantile(1.0, 2.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_mean(1.0, 2.0) - (1.0)) <= 1e-8 * greatest(1, abs(1.0));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_variance(1.0, 2.0) - (0.5)) <= 1e-8 * greatest(1, abs(0.5));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_median(1.0, 2.0) - (0.8043390412960014)) <= 1e-8 * greatest(1, abs(0.8043390412960014));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_skewness(1.0, 2.0) - (2.121320343559643)) <= 1e-6 * greatest(1, abs(2.121320343559643));
+----
+true
+
+query I
+SELECT abs(dist_inverse_gaussian_hazard(1.0, 2.0, 0.5) - (1.2608505993270598)) <= 1e-8 * greatest(1, abs(1.2608505993270598));
+----
+true
+
+query I
+SELECT typeof(dist_inverse_gaussian_sample(1.0, 2.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_inverse_gaussian_mean(1.0, 2.0)) < 6 * dist_inverse_gaussian_stddev(1.0, 2.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_inverse_gaussian_samples(1.0, 2.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_inverse_gaussian_variance(1.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_inverse_gaussian_samples(1.0, 2.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_inverse_gaussian_quantile(1.0, 2.0, 0.8)) < 0.02 * greatest(1, abs(dist_inverse_gaussian_quantile(1.0, 2.0, 0.8)))
+FROM (SELECT unnest(dist_inverse_gaussian_samples(1.0, 2.0, 200000)) AS s);
+----
+true

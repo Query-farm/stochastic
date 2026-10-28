@@ -1,0 +1,47 @@
+# name: test/sql/non_central_beta.test
+# description: non-central beta distribution, checked against the Poisson mixture of beta distributions
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_non_central_beta_pdf(2.0, 3.0, 1.0, 0.5) - (1.6435434494309638)) <= 1e-8 * greatest(1, abs(1.6435434494309638));
+----
+true
+
+query I
+SELECT abs(dist_non_central_beta_cdf(2.0, 3.0, 1.0, 0.5) - (0.5977904448184808)) <= 1e-8 * greatest(1, abs(0.5977904448184808));
+----
+true
+
+query I
+SELECT abs(dist_non_central_beta_cdf_complement(2.0, 3.0, 1.0, 0.5) - (0.40220955518151924)) <= 1e-8 * greatest(1, abs(0.40220955518151924));
+----
+true
+
+query I
+SELECT abs(dist_non_central_beta_cdf(2.0, 3.0, 1.0, dist_non_central_beta_quantile(2.0, 3.0, 1.0, 0.95)) - (0.95)) <= 1e-9 * greatest(1, abs(0.95));
+----
+true
+
+query I
+SELECT abs(dist_non_central_beta_mean(2.0, 3.0, 1.0) - (0.446639977907408)) <= 1e-8 * greatest(1, abs(0.446639977907408));
+----
+true
+
+query I
+SELECT typeof(dist_non_central_beta_sample(2.0, 3.0, 1.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_non_central_beta_mean(2.0, 3.0, 1.0)) < 6 * dist_non_central_beta_stddev(2.0, 3.0, 1.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_non_central_beta_samples(2.0, 3.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_non_central_beta_quantile(2.0, 3.0, 1.0, 0.8)) < 0.01
+FROM (SELECT unnest(dist_non_central_beta_samples(2.0, 3.0, 1.0, 200000)) AS s);
+----
+true

@@ -20,6 +20,7 @@
 #include <utility>
 #include "rng_adapter.hpp"
 #include "custom_random.hpp"
+#include "samplers.hpp"
 #include "distribution_traits.hpp"
 
 namespace duckdb {

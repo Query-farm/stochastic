@@ -267,3 +267,35 @@ SELECT count(*) FROM (
 WHERE NOT EXISTS (SELECT 1 FROM duckdb_functions() WHERE function_name = 'dist_' || dist || '_' || fn);
 ----
 0
+
+# --- Parameter validation for the three-parameter distributions ---
+
+statement error
+SELECT dist_triangular_pdf(0.0, 2.0, 1.0, 0.5);
+----
+triangular: parameters must satisfy lower <= mode <= upper and lower < upper
+
+statement error
+SELECT dist_hypergeometric_pmf(60, 5, 50, 2);
+----
+hypergeometric: successes and draws must be <= population
+
+statement error
+SELECT dist_skew_normal_cdf(0.0, 0.0, 1.0, 0.5);
+----
+skew_normal: scale must be > 0, got 0
+
+statement error
+SELECT dist_non_central_f_sample(5.0, 10.0, -1.0);
+----
+non_central_f: noncentrality must be >= 0, got -1
+
+statement error
+SELECT dist_non_central_chi_squared_sample(4.0, 1e300);
+----
+non_central_chi_squared: noncentrality is too large to sample
+
+query I
+SELECT dist_hypergeometric_support(10, 5, 50);
+----
+[0.0, 5.0]

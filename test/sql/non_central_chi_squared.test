@@ -1,0 +1,88 @@
+# name: test/sql/non_central_chi_squared.test
+# description: non central chi squared distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_non_central_chi_squared_pdf(4.0, 2.0, 3.0) - (0.12083649092711131)) <= 1e-8 * greatest(1, abs(0.12083649092711131));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_cdf(4.0, 2.0, 3.0) - (0.2462727014619815)) <= 1e-8 * greatest(1, abs(0.2462727014619815));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_cdf_complement(4.0, 2.0, 3.0) - (0.7537272985380187)) <= 1e-8 * greatest(1, abs(0.7537272985380187));
+----
+true
+
+query I
+SELECT abs(exp(dist_non_central_chi_squared_log_pdf(4.0, 2.0, 3.0)) - (0.12083649092711131)) <= 1e-8 * greatest(1, abs(0.12083649092711131));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_quantile(4.0, 2.0, 0.95) - (13.700992145144294)) <= 1e-8 * greatest(1, abs(13.700992145144294));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_quantile_complement(4.0, 2.0, 0.05) - (13.70099214514428)) <= 1e-8 * greatest(1, abs(13.70099214514428));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_cdf(4.0, 2.0, dist_non_central_chi_squared_quantile(4.0, 2.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_mean(4.0, 2.0) - (6.0)) <= 1e-8 * greatest(1, abs(6.0));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_variance(4.0, 2.0) - (16.0)) <= 1e-8 * greatest(1, abs(16.0));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_median(4.0, 2.0) - (5.166725235913415)) <= 1e-8 * greatest(1, abs(5.166725235913415));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_skewness(4.0, 2.0) - (1.25)) <= 1e-6 * greatest(1, abs(1.25));
+----
+true
+
+query I
+SELECT abs(dist_non_central_chi_squared_hazard(4.0, 2.0, 3.0) - (0.16031858095294424)) <= 1e-8 * greatest(1, abs(0.16031858095294424));
+----
+true
+
+query I
+SELECT typeof(dist_non_central_chi_squared_sample(4.0, 2.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_non_central_chi_squared_mean(4.0, 2.0)) < 6 * dist_non_central_chi_squared_stddev(4.0, 2.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_non_central_chi_squared_samples(4.0, 2.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_non_central_chi_squared_variance(4.0, 2.0) - 1) < 0.1
+FROM (SELECT unnest(dist_non_central_chi_squared_samples(4.0, 2.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_non_central_chi_squared_quantile(4.0, 2.0, 0.8)) < 0.02 * greatest(1, abs(dist_non_central_chi_squared_quantile(4.0, 2.0, 0.8)))
+FROM (SELECT unnest(dist_non_central_chi_squared_samples(4.0, 2.0, 200000)) AS s);
+----
+true

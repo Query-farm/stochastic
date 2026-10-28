@@ -1,0 +1,83 @@
+# name: test/sql/inverse_chi_squared.test
+# description: inverse chi squared distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_inverse_chi_squared_pdf(5.0, 1.0, 0.5) - (0.5666911068346892)) <= 1e-8 * greatest(1, abs(0.5666911068346892));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_cdf(5.0, 1.0, 0.5) - (0.07523524614651216)) <= 1e-8 * greatest(1, abs(0.07523524614651216));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_cdf_complement(5.0, 1.0, 0.5) - (0.9247647538534879)) <= 1e-8 * greatest(1, abs(0.9247647538534879));
+----
+true
+
+query I
+SELECT abs(exp(dist_inverse_chi_squared_log_pdf(5.0, 1.0, 0.5)) - (0.5666911068346892)) <= 1e-8 * greatest(1, abs(0.5666911068346892));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_quantile(5.0, 1.0, 0.95) - (4.364996746541273)) <= 1e-8 * greatest(1, abs(4.364996746541273));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_quantile_complement(5.0, 1.0, 0.05) - (4.364996746541275)) <= 1e-8 * greatest(1, abs(4.364996746541275));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_cdf(5.0, 1.0, dist_inverse_chi_squared_quantile(5.0, 1.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_mean(5.0, 1.0) - (1.6666666666666665)) <= 1e-8 * greatest(1, abs(1.6666666666666665));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_variance(5.0, 1.0) - (5.555555555555555)) <= 1e-8 * greatest(1, abs(5.555555555555555));
+----
+true
+
+query I
+SELECT abs(dist_inverse_chi_squared_median(5.0, 1.0) - (1.1490395822146302)) <= 1e-8 * greatest(1, abs(1.1490395822146302));
+----
+true
+
+# Undefined for these parameters
+query R
+SELECT dist_inverse_chi_squared_skewness(5.0, 1.0);
+----
+NULL
+
+query I
+SELECT abs(dist_inverse_chi_squared_hazard(5.0, 1.0, 0.5) - (0.6127948805069522)) <= 1e-8 * greatest(1, abs(0.6127948805069522));
+----
+true
+
+query I
+SELECT typeof(dist_inverse_chi_squared_sample(5.0, 1.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_inverse_chi_squared_mean(5.0, 1.0)) < 6 * dist_inverse_chi_squared_stddev(5.0, 1.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_inverse_chi_squared_samples(5.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_inverse_chi_squared_quantile(5.0, 1.0, 0.8)) < 0.02 * greatest(1, abs(dist_inverse_chi_squared_quantile(5.0, 1.0, 0.8)))
+FROM (SELECT unnest(dist_inverse_chi_squared_samples(5.0, 1.0, 200000)) AS s);
+----
+true

@@ -1,0 +1,88 @@
+# name: test/sql/non_central_t.test
+# description: non central t distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_non_central_t_pdf(10.0, 1.0, 1.5) - (0.32474376767444835)) <= 1e-7 * greatest(1, abs(0.32474376767444835));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_cdf(10.0, 1.0, 1.5) - (0.6695168482153548)) <= 1e-7 * greatest(1, abs(0.6695168482153548));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_cdf_complement(10.0, 1.0, 1.5) - (0.3304831517846451)) <= 1e-7 * greatest(1, abs(0.3304831517846451));
+----
+true
+
+query I
+SELECT abs(exp(dist_non_central_t_log_pdf(10.0, 1.0, 1.5)) - (0.32474376767444835)) <= 1e-7 * greatest(1, abs(0.32474376767444835));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_quantile(10.0, 1.0, 0.95) - (3.041741814969764)) <= 1e-7 * greatest(1, abs(3.041741814969764));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_quantile_complement(10.0, 1.0, 0.05) - (3.0417418149697646)) <= 1e-7 * greatest(1, abs(3.0417418149697646));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_cdf(10.0, 1.0, dist_non_central_t_quantile(10.0, 1.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_mean(10.0, 1.0) - (1.0837223079391436)) <= 1e-7 * greatest(1, abs(1.0837223079391436));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_variance(10.0, 1.0) - (1.325545959275056)) <= 1e-7 * greatest(1, abs(1.325545959275056));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_median(10.0, 1.0) - (1.0257209228280026)) <= 1e-7 * greatest(1, abs(1.0257209228280026));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_skewness(10.0, 1.0) - (0.3999297299058122)) <= 1e-6 * greatest(1, abs(0.3999297299058122));
+----
+true
+
+query I
+SELECT abs(dist_non_central_t_hazard(10.0, 1.0, 1.5) - (0.9826333533821514)) <= 1e-7 * greatest(1, abs(0.9826333533821514));
+----
+true
+
+query I
+SELECT typeof(dist_non_central_t_sample(10.0, 1.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_non_central_t_mean(10.0, 1.0)) < 6 * dist_non_central_t_stddev(10.0, 1.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_non_central_t_samples(10.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_non_central_t_variance(10.0, 1.0) - 1) < 0.1
+FROM (SELECT unnest(dist_non_central_t_samples(10.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_non_central_t_quantile(10.0, 1.0, 0.8)) < 0.02 * greatest(1, abs(dist_non_central_t_quantile(10.0, 1.0, 0.8)))
+FROM (SELECT unnest(dist_non_central_t_samples(10.0, 1.0, 200000)) AS s);
+----
+true

@@ -1,0 +1,88 @@
+# name: test/sql/arcsine.test
+# description: arcsine distribution, checked against SciPy
+# group: [sql]
+
+require stochastic
+
+query I
+SELECT abs(dist_arcsine_pdf(0.0, 1.0, 0.25) - (0.7351051938957228)) <= 1e-8 * greatest(1, abs(0.7351051938957228));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_cdf(0.0, 1.0, 0.25) - (0.3333333333333333)) <= 1e-8 * greatest(1, abs(0.3333333333333333));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_cdf_complement(0.0, 1.0, 0.25) - (0.6666666666666667)) <= 1e-8 * greatest(1, abs(0.6666666666666667));
+----
+true
+
+query I
+SELECT abs(exp(dist_arcsine_log_pdf(0.0, 1.0, 0.25)) - (0.7351051938957228)) <= 1e-8 * greatest(1, abs(0.7351051938957228));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_quantile(0.0, 1.0, 0.95) - (0.9938441702975689)) <= 1e-8 * greatest(1, abs(0.9938441702975689));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_quantile_complement(0.0, 1.0, 0.05) - (0.9938441702975689)) <= 1e-8 * greatest(1, abs(0.9938441702975689));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_cdf(0.0, 1.0, dist_arcsine_quantile(0.0, 1.0, 0.3)) - (0.3)) <= 1e-9 * greatest(1, abs(0.3));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_mean(0.0, 1.0) - (0.5)) <= 1e-8 * greatest(1, abs(0.5));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_variance(0.0, 1.0) - (0.125)) <= 1e-8 * greatest(1, abs(0.125));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_median(0.0, 1.0) - (0.4999999999999999)) <= 1e-8 * greatest(1, abs(0.4999999999999999));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_skewness(0.0, 1.0) - (0.0)) <= 1e-6 * greatest(1, abs(0.0));
+----
+true
+
+query I
+SELECT abs(dist_arcsine_hazard(0.0, 1.0, 0.25) - (1.1026577908435842)) <= 1e-8 * greatest(1, abs(1.1026577908435842));
+----
+true
+
+query I
+SELECT typeof(dist_arcsine_sample(0.0, 1.0));
+----
+DOUBLE
+
+query I
+SELECT abs(avg(s) - dist_arcsine_mean(0.0, 1.0)) < 6 * dist_arcsine_stddev(0.0, 1.0) / sqrt(count(*))
+FROM (SELECT unnest(dist_arcsine_samples(0.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(var_samp(s) / dist_arcsine_variance(0.0, 1.0) - 1) < 0.1
+FROM (SELECT unnest(dist_arcsine_samples(0.0, 1.0, 200000)) AS s);
+----
+true
+
+query I
+SELECT abs(quantile_cont(s, 0.8) - dist_arcsine_quantile(0.0, 1.0, 0.8)) < 0.02 * greatest(1, abs(dist_arcsine_quantile(0.0, 1.0, 0.8)))
+FROM (SELECT unnest(dist_arcsine_samples(0.0, 1.0, 200000)) AS s);
+----
+true
