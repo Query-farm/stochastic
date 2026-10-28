@@ -67,7 +67,7 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 
 **Samplers (`src/include/samplers.hpp`, `src/include/custom_random.hpp`)**: Samplers for distributions the C++ standard library lacks. `InverseTransformSampler<Dist, T>` samples any Boost distribution via its quantile function.
 
-**Aggregates (`src/include/aggregate_utils.hpp`, `src/fit_functions.cpp`, `src/hypothesis_tests.cpp`)**: `RegisterStructAggregate<OP>` builds a STRUCT-of-DOUBLE aggregate from an operation struct (`inputs`, `result_names`, a trivially movable `State`, `Update`, `Combine`, `Finalize`, `Destroy`). `RunningMoments` (mergeable Welford moments), `CollectedValues` and `GroupParameters` are shared building blocks.
+**Aggregates (`src/include/aggregate_utils.hpp`, `src/fit_functions.cpp`, `src/hypothesis_tests.cpp`)**: `RegisterStructAggregate<OP>` builds a STRUCT-of-DOUBLE aggregate from an operation struct (`inputs`, `result_names`, a trivially movable `State`, `Update`, `Combine`, `Finalize`, `Destroy`). `RunningMoments` (mergeable Welford moments), `CollectedValues` and `GroupParameters` are shared building blocks. Fits declare `param_names`, `Count` and `LogLikelihood`; `FitAggregate<OP>` in `src/fit_functions.cpp` appends `log_likelihood`, `aic` and `bic` to the parameters. Fits without sufficient statistics (Weibull, logistic, Cauchy, ...) collect the sample with `CollectedFit`.
 
 **RNG (`src/include/rng_adapter.hpp`)**: Each chunk seeds a local `std::mt19937_64` from DuckDB's per-client `RandomEngine`, so `SELECT setseed(x)` makes sampling reproducible, including in parallel.
 
@@ -120,7 +120,7 @@ Examples:
 - `dist_normal_quantile(mean, stddev, p)` - Inverse CDF (p-th quantile)
 - `dist_normal_mean(mean, stddev)` - Distribution mean
 - `dist_normal_variance(mean, stddev)` - Distribution variance
-- `dist_normal_fit(x)` - Aggregate: maximum likelihood parameters as a STRUCT
+- `dist_normal_fit(x)` - Aggregate: maximum likelihood parameters, log-likelihood, AIC and BIC as a STRUCT
 - `dist_normal_ks_test(x, mean, stddev)` - Aggregate: Kolmogorov-Smirnov test
 
 Discrete distributions also have `pmf` / `log_pmf`. The hypothesis tests that are not tied to a distribution are `welch_t_test`, `student_t_test`, `one_sample_t_test` and `chi_squared_test`.
@@ -133,7 +133,7 @@ Every function is categorized as `[statistics, <kind>, <distribution>]` where ki
 src/
 ├── stochastic_extension.cpp          # Extension entry point and distribution list
 ├── distribution_*.cpp                # One file per distribution (36 files)
-├── fit_functions.cpp                 # dist_<name>_fit aggregates
+├── fit_functions.cpp                 # dist_<name>_fit aggregates (22 distributions)
 ├── hypothesis_tests.cpp              # t-tests and chi-squared test aggregates
 ├── query_farm_telemetry.cpp          # Optional telemetry
 └── include/

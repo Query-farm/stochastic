@@ -122,6 +122,466 @@ SELECT abs((SELECT dist_beta_fit(x).beta FROM beta_data) - (4.950325002451835)) 
 ----
 true
 
+# Log-likelihood, AIC and BIC
+query I
+SELECT abs((SELECT dist_normal_fit(x).log_likelihood FROM normal_data) - (-123.7557482016972)) <= 1e-7 * greatest(1, abs(-123.7557482016972));
+----
+true
+
+query I
+SELECT abs((SELECT dist_normal_fit(x).aic FROM normal_data) - (251.5114964033944)) <= 1e-7 * greatest(1, abs(251.5114964033944));
+----
+true
+
+query I
+SELECT abs((SELECT dist_normal_fit(x).bic FROM normal_data) - (255.7001855278386)) <= 1e-7 * greatest(1, abs(255.7001855278386));
+----
+true
+
+query I
+SELECT abs((SELECT dist_lognormal_fit(x).log_likelihood FROM lognormal_data) - (-98.06154325142852)) <= 1e-7 * greatest(1, abs(-98.06154325142852));
+----
+true
+
+query I
+SELECT abs((SELECT dist_lognormal_fit(x).aic FROM lognormal_data) - (200.12308650285703)) <= 1e-7 * greatest(1, abs(200.12308650285703));
+----
+true
+
+query I
+SELECT abs((SELECT dist_lognormal_fit(x).bic FROM lognormal_data) - (204.31177562730124)) <= 1e-7 * greatest(1, abs(204.31177562730124));
+----
+true
+
+query I
+SELECT abs((SELECT dist_exponential_fit(x).log_likelihood FROM exponential_data) - (-28.552347805975216)) <= 1e-7 * greatest(1, abs(-28.552347805975216));
+----
+true
+
+query I
+SELECT abs((SELECT dist_exponential_fit(x).aic FROM exponential_data) - (59.10469561195043)) <= 1e-7 * greatest(1, abs(59.10469561195043));
+----
+true
+
+query I
+SELECT abs((SELECT dist_exponential_fit(x).bic FROM exponential_data) - (61.19904017417253)) <= 1e-7 * greatest(1, abs(61.19904017417253));
+----
+true
+
+query I
+SELECT abs((SELECT dist_poisson_fit(x).log_likelihood FROM poisson_data) - (-125.4821114397189)) <= 1e-7 * greatest(1, abs(-125.4821114397189));
+----
+true
+
+query I
+SELECT abs((SELECT dist_poisson_fit(x).aic FROM poisson_data) - (252.9642228794378)) <= 1e-7 * greatest(1, abs(252.9642228794378));
+----
+true
+
+query I
+SELECT abs((SELECT dist_poisson_fit(x).bic FROM poisson_data) - (255.0585674416599)) <= 1e-7 * greatest(1, abs(255.0585674416599));
+----
+true
+
+query I
+SELECT abs((SELECT dist_bernoulli_fit(x).log_likelihood FROM bernoulli_data) - (-34.79491028508605)) <= 1e-7 * greatest(1, abs(-34.79491028508605));
+----
+true
+
+query I
+SELECT abs((SELECT dist_bernoulli_fit(x).aic FROM bernoulli_data) - (71.5898205701721)) <= 1e-7 * greatest(1, abs(71.5898205701721));
+----
+true
+
+query I
+SELECT abs((SELECT dist_bernoulli_fit(x).bic FROM bernoulli_data) - (73.6841651323942)) <= 1e-7 * greatest(1, abs(73.6841651323942));
+----
+true
+
+query I
+SELECT abs((SELECT dist_geometric_fit(x).log_likelihood FROM geometric_data) - (-129.54309873467378)) <= 1e-7 * greatest(1, abs(-129.54309873467378));
+----
+true
+
+query I
+SELECT abs((SELECT dist_geometric_fit(x).aic FROM geometric_data) - (261.08619746934755)) <= 1e-7 * greatest(1, abs(261.08619746934755));
+----
+true
+
+query I
+SELECT abs((SELECT dist_geometric_fit(x).bic FROM geometric_data) - (263.18054203156964)) <= 1e-7 * greatest(1, abs(263.18054203156964));
+----
+true
+
+query I
+SELECT abs((SELECT dist_rayleigh_fit(x).log_likelihood FROM rayleigh_data) - (-102.04834951620592)) <= 1e-7 * greatest(1, abs(-102.04834951620592));
+----
+true
+
+query I
+SELECT abs((SELECT dist_rayleigh_fit(x).aic FROM rayleigh_data) - (206.09669903241183)) <= 1e-7 * greatest(1, abs(206.09669903241183));
+----
+true
+
+query I
+SELECT abs((SELECT dist_rayleigh_fit(x).bic FROM rayleigh_data) - (208.19104359463392)) <= 1e-7 * greatest(1, abs(208.19104359463392));
+----
+true
+
+query I
+SELECT abs((SELECT dist_uniform_real_fit(x).log_likelihood FROM uniform_real_data) - (-82.792895592362)) <= 1e-7 * greatest(1, abs(-82.792895592362));
+----
+true
+
+query I
+SELECT abs((SELECT dist_uniform_real_fit(x).aic FROM uniform_real_data) - (169.585791184724)) <= 1e-7 * greatest(1, abs(169.585791184724));
+----
+true
+
+query I
+SELECT abs((SELECT dist_uniform_real_fit(x).bic FROM uniform_real_data) - (173.7744803091682)) <= 1e-7 * greatest(1, abs(173.7744803091682));
+----
+true
+
+query I
+SELECT abs((SELECT dist_pareto_fit(x).log_likelihood FROM pareto_data) - (-36.89205182546618)) <= 1e-7 * greatest(1, abs(-36.89205182546618));
+----
+true
+
+query I
+SELECT abs((SELECT dist_pareto_fit(x).aic FROM pareto_data) - (77.78410365093237)) <= 1e-7 * greatest(1, abs(77.78410365093237));
+----
+true
+
+query I
+SELECT abs((SELECT dist_pareto_fit(x).bic FROM pareto_data) - (81.97279277537656)) <= 1e-7 * greatest(1, abs(81.97279277537656));
+----
+true
+
+query I
+SELECT abs((SELECT dist_gamma_fit(x).log_likelihood FROM gamma_data) - (-116.83514649013198)) <= 1e-7 * greatest(1, abs(-116.83514649013198));
+----
+true
+
+query I
+SELECT abs((SELECT dist_gamma_fit(x).aic FROM gamma_data) - (237.67029298026395)) <= 1e-7 * greatest(1, abs(237.67029298026395));
+----
+true
+
+query I
+SELECT abs((SELECT dist_gamma_fit(x).bic FROM gamma_data) - (241.85898210470816)) <= 1e-7 * greatest(1, abs(241.85898210470816));
+----
+true
+
+query I
+SELECT abs((SELECT dist_beta_fit(x).log_likelihood FROM beta_data) - (27.91578528208064)) <= 1e-7 * greatest(1, abs(27.91578528208064));
+----
+true
+
+query I
+SELECT abs((SELECT dist_beta_fit(x).aic FROM beta_data) - (-51.83157056416128)) <= 1e-7 * greatest(1, abs(-51.83157056416128));
+----
+true
+
+query I
+SELECT abs((SELECT dist_beta_fit(x).bic FROM beta_data) - (-47.64288143971708)) <= 1e-7 * greatest(1, abs(-47.64288143971708));
+----
+true
+
+statement ok
+CREATE TABLE inverse_gamma_data AS SELECT * FROM (VALUES (0.668987), (2.697826), (3.395055), (1.563397), (1.315175), (0.741261), (0.457905), (1.220276), (0.59112), (0.676815), (0.800132), (0.238024), (1.3149), (0.780114), (3.712368), (0.866801), (0.352598), (0.883501), (0.526961), (0.430578), (0.719658), (0.823514), (1.130264), (0.737253), (1.206857), (0.680622), (0.40151), (0.233308), (1.641796), (0.451306), (2.267716), (0.658404), (0.789708), (0.466304), (0.414453), (0.40561), (0.733085), (1.811824), (0.574647), (0.486453), (0.424016), (1.241189), (2.039461), (0.722956), (0.274809), (0.686081), (1.527527), (0.845141), (0.323845), (0.888555), (0.524682), (0.515055), (1.385323), (1.297178), (0.625649), (0.483768), (1.227152), (1.38346), (0.902477), (0.362725), (0.369272), (1.029465), (0.423329), (0.76907), (3.418927), (0.435897), (1.083969), (1.763516), (0.664947), (0.489701)) t(x);
+
+statement ok
+CREATE TABLE chi_squared_data AS SELECT * FROM (VALUES (9.818668), (2.393326), (6.368963), (1.601315), (2.033419), (0.236522), (4.093279), (2.749049), (2.436641), (4.186059), (3.885806), (1.647172), (5.210977), (4.782255), (9.998061), (1.728113), (9.167463), (10.643963), (3.66566), (5.888418), (3.614799), (1.91147), (7.498407), (3.934294), (2.791163), (9.952736), (5.936184), (1.784101), (6.544926), (8.546936), (3.434189), (14.184112), (2.130396), (6.936112), (6.120203), (0.701192), (1.146155), (4.348303), (7.36149), (1.895468), (6.035752), (5.032802), (16.747577), (4.125912), (5.124804), (1.743339), (3.527872), (3.982183), (15.34841), (3.373032), (3.595196), (1.354159), (3.196138), (6.667493), (3.332357), (3.833936), (0.730626), (3.424714), (3.703075), (6.564037), (7.460953), (3.224481), (5.085284), (2.731438), (2.172443), (4.425262), (2.647527), (4.925711), (5.387975), (6.158867)) t(x);
+
+statement ok
+CREATE TABLE inverse_gaussian_data AS SELECT * FROM (VALUES (1.746166), (1.157287), (1.210382), (1.962971), (0.992691), (3.84019), (1.400657), (0.417612), (1.888579), (0.540654), (0.321395), (1.803633), (4.427453), (0.601751), (2.726409), (2.637482), (0.813474), (1.169289), (0.971117), (0.289462), (2.052141), (0.926464), (0.265289), (1.102546), (1.388265), (1.322365), (1.688761), (1.364702), (0.569213), (0.981278), (1.069136), (1.777138), (1.207261), (0.913615), (0.833543), (0.852872), (0.839198), (1.018163), (3.759362), (2.123491), (3.552621), (1.862305), (3.385545), (1.476514), (0.873756), (0.837635), (2.921781), (3.577395), (1.095807), (2.12357), (2.763238), (2.619884), (1.26167), (2.149434), (0.557083), (0.305656), (0.957016), (1.189714), (1.833767), (0.415258), (1.127692), (2.851523), (1.028045), (3.522316), (1.45098), (0.384493), (1.367956), (3.703856), (1.300142), (1.469268)) t(x);
+
+statement ok
+CREATE TABLE laplace_data AS SELECT * FROM (VALUES (2.51177), (1.5394), (-0.613296), (1.422802), (-1.722375), (-0.039736), (3.181897), (0.819883), (-2.02798), (4.302874), (-0.982432), (0.037503), (-2.020336), (-5.657763), (0.87872), (2.676939), (-3.649149), (-5.464449), (2.380103), (-0.274604), (-0.188617), (0.333735), (4.654658), (4.358542), (-2.458235), (-10.150844), (-0.563028), (2.130236), (-0.646646), (-4.301151), (-0.41234), (2.474382), (2.205846), (-0.111892), (-0.422436), (1.928317), (0.546415), (1.280926), (1.950586), (2.103067), (-1.209469), (-1.868854), (1.655862), (-2.101709), (2.19769), (-6.8016), (1.284319), (0.177865), (-0.907252), (0.671473), (0.610826), (1.470419), (2.638503), (5.383134), (2.143997), (0.558644), (1.338888), (1.499071), (0.052791), (-2.38468), (-2.425927), (0.824994), (2.971496), (1.224369), (0.545641), (-0.397727), (1.948593), (1.7686), (2.277183), (-0.145593), (-2.556435)) t(x);
+
+statement ok
+CREATE TABLE logistic_data AS SELECT * FROM (VALUES (-1.434361), (-2.316844), (-2.128511), (-1.116655), (-2.881587), (-1.904303), (-2.284606), (-0.808335), (-2.029623), (0.588204), (-0.56089), (-1.157573), (-1.684573), (-1.111711), (-0.071772), (-1.365915), (-0.175023), (-2.981884), (-1.640428), (1.095621), (-1.51971), (-0.139604), (-1.422099), (-0.82369), (-0.777177), (-0.546735), (-0.997014), (-2.387037), (-1.633721), (-0.236014), (-0.40028), (-4.344312), (-0.590772), (0.353835), (-0.844878), (-4.549926), (-0.248626), (-1.593335), (1.028808), (-1.085878), (0.205254), (-1.724351), (-1.993951), (-0.917672), (-1.252206), (-0.633436), (-1.414227), (-1.555373), (-0.070867), (-2.948664), (-0.086148), (-0.9404), (-3.325749), (0.276941), (-4.033521), (-0.364492), (-2.26077), (-0.723869), (-0.473832), (-0.56554), (-2.083676), (-0.583063), (-1.635754), (-0.51901), (-3.449886), (-3.407967), (-2.298576), (-0.901678), (-2.498481), (-1.666925)) t(x);
+
+statement ok
+CREATE TABLE cauchy_data AS SELECT * FROM (VALUES (2.244304), (0.791356), (20.887225), (2.130274), (4.705281), (1.639342), (2.935923), (2.021868), (1.86635), (1.239237), (-0.097511), (6.055255), (2.944276), (1.789787), (-0.019948), (2.882514), (2.360402), (2.089504), (2.186131), (-2.249428), (2.011405), (1.844709), (2.270025), (-2.079379), (1.389498), (2.374277), (3.424278), (2.531028), (2.867573), (1.69432), (1.751919), (2.096969), (2.518651), (4.391554), (1.931338), (2.02716), (2.219287), (2.593654), (1.14573), (1.874362), (1.76831), (3.390184), (0.508101), (1.014051), (1.123292), (4.193732), (2.288721), (2.670574), (2.955805), (3.881451), (1.104394), (2.98675), (1.812219), (1.641184), (1.408419), (5.986056), (2.425264), (2.134658), (-0.071245), (2.771709), (1.945578), (2.963817), (2.158595), (1.608075), (2.031994), (2.705552), (1.533601), (1.562861), (2.286783), (2.226649)) t(x);
+
+statement ok
+CREATE TABLE extreme_value_data AS SELECT * FROM (VALUES (5.091455), (2.107562), (2.849984), (4.786946), (8.317566), (6.542893), (2.495576), (1.972963), (3.888302), (4.005563), (3.461531), (4.292935), (2.432395), (10.102806), (4.299878), (3.804402), (5.553173), (0.465619), (4.173288), (5.45155), (5.472357), (6.266469), (2.444898), (2.886012), (6.195537), (5.91412), (1.051089), (2.804045), (10.192355), (1.952575), (4.805981), (5.143092), (6.116443), (2.148286), (2.329531), (2.477563), (2.373848), (5.949403), (3.269783), (3.63867), (1.039797), (2.0856), (1.760214), (5.510111), (7.518459), (4.840431), (4.605309), (7.520379), (2.386535), (2.430155), (4.649245), (4.002355), (3.771449), (4.430506), (2.294662), (5.91754), (6.545187), (4.956959), (5.065012), (5.058058), (6.704223), (1.226944), (2.96176), (1.515105), (2.564142), (2.020646), (5.20758), (6.468773), (1.735958), (6.675473)) t(x);
+
+statement ok
+CREATE TABLE weibull_data AS SELECT * FROM (VALUES (0.879435), (0.899214), (0.216209), (0.69402), (1.347224), (0.972323), (1.992343), (1.826924), (1.403571), (0.864887), (1.757014), (2.345131), (1.040638), (0.296391), (1.585369), (0.988474), (1.353141), (1.708454), (1.192945), (1.317542), (1.142014), (1.298313), (1.352001), (1.888596), (1.061778), (1.492823), (2.560042), (1.221728), (1.202044), (1.596204), (2.677895), (1.049924), (2.069379), (1.275861), (0.829318), (1.381448), (1.25544), (1.417182), (2.083922), (2.998155), (0.813366), (1.140955), (2.588077), (1.960608), (1.556702), (1.083529), (1.429246), (1.364558), (1.239119), (1.603923), (1.57397), (2.536658), (1.691163), (1.494033), (1.21346), (1.597446), (1.660467), (0.647863), (1.262745), (1.696174), (0.73577), (2.21182), (1.26463), (2.040676), (2.174304), (3.788188), (0.55757), (1.400576), (0.621272), (2.388243)) t(x);
+
+statement ok
+CREATE TABLE students_t_data AS SELECT * FROM (VALUES (1.761208), (8.758043), (-0.426448), (-0.427031), (0.114582), (0.002389), (-1.047518), (0.43605), (-2.418615), (-0.560027), (-2.16723), (-0.861977), (0.576026), (0.073845), (-2.174263), (-0.001857), (-1.672244), (-0.828489), (-0.15846), (-0.305342), (-0.112822), (0.14502), (2.447015), (-0.738863), (-0.86129), (1.16227), (0.666819), (-0.084991), (-0.05205), (0.727343), (0.732622), (-0.462255), (1.497035), (-0.956844), (-1.001256), (-0.627517), (1.132848), (4.954298), (0.010818), (3.335248), (-0.800685), (-0.137461), (0.642743), (-0.569588), (-0.325184), (0.141076), (0.075059), (1.245404), (0.821642), (-0.881704), (0.357918), (-0.911748), (-3.010525), (0.900018), (-0.567036), (-0.939453), (1.486414), (-0.47371), (0.440286), (3.637994), (-1.30641), (-0.367435), (-1.449867), (0.906475), (-0.316107), (-0.15062), (1.685758), (0.967496), (0.421907), (2.403222), (0.702823), (1.914854), (-0.632715), (-1.247884), (0.382286), (-0.247677), (-1.458898), (-0.385955), (-0.100988), (0.458029), (0.088597), (2.526903), (1.307395), (1.96398), (0.864458), (-0.757525), (1.370391), (2.168733), (-0.746993), (-0.889245), (0.395694), (-0.837098), (2.276365), (-0.68662), (-0.968194), (1.765303), (0.903473), (-0.240306), (2.251591), (-1.19401), (1.714258), (-1.025617), (0.141172), (0.613337), (-1.281924), (-0.451135), (0.63199), (0.853472), (2.807691), (0.250435), (-0.009819), (-0.172201), (1.086092), (2.008554), (-1.360675), (-0.609693), (1.088435), (-1.307163), (0.214936), (-0.26857)) t(x);
+
+statement ok
+CREATE TABLE binomial_data AS SELECT * FROM (VALUES (6.0), (4.0), (6.0), (5.0), (5.0), (5.0), (7.0), (5.0), (5.0), (5.0), (7.0), (3.0), (6.0), (7.0), (6.0), (3.0), (5.0), (5.0), (4.0), (3.0), (3.0), (7.0), (2.0), (5.0), (5.0), (3.0), (6.0), (9.0), (6.0), (4.0), (4.0), (5.0), (3.0), (2.0), (5.0), (2.0), (3.0), (5.0), (3.0), (5.0), (6.0), (5.0), (5.0), (4.0), (5.0), (4.0), (3.0), (5.0), (3.0), (4.0), (6.0), (4.0), (3.0), (3.0), (3.0), (4.0), (9.0), (5.0), (3.0), (4.0), (4.0), (4.0), (5.0), (6.0), (3.0), (5.0), (7.0), (6.0), (5.0), (6.0)) t(x);
+
+statement ok
+CREATE TABLE negative_binomial_data AS SELECT * FROM (VALUES (10.0), (2.0), (8.0), (6.0), (12.0), (2.0), (5.0), (9.0), (6.0), (4.0), (1.0), (0.0), (3.0), (11.0), (6.0), (5.0), (5.0), (5.0), (6.0), (3.0), (10.0), (1.0), (7.0), (3.0), (4.0), (10.0), (13.0), (8.0), (3.0), (5.0), (6.0), (10.0), (5.0), (2.0), (4.0), (6.0), (9.0), (4.0), (6.0), (2.0), (12.0), (9.0), (10.0), (8.0), (10.0), (10.0), (2.0), (4.0), (5.0), (3.0), (1.0), (4.0), (10.0), (3.0), (16.0), (4.0), (4.0), (3.0), (7.0), (10.0), (8.0), (1.0), (8.0), (4.0), (7.0), (10.0), (5.0), (2.0), (6.0), (5.0), (4.0), (3.0), (10.0), (4.0), (1.0), (6.0), (1.0), (8.0), (4.0), (5.0), (16.0), (10.0), (6.0), (6.0), (3.0), (4.0), (4.0), (1.0), (5.0), (8.0)) t(x);
+
+# Fits of the remaining distributions
+query I
+SELECT abs((SELECT dist_inverse_gamma_fit(x).shape FROM inverse_gamma_data) - (2.9695607037428013)) <= 1e-6 * greatest(1, abs(2.9695607037428013));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gamma_fit(x).scale FROM inverse_gamma_data) - (1.9527572345556792)) <= 1e-6 * greatest(1, abs(1.9527572345556792));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gamma_fit(x).log_likelihood FROM inverse_gamma_data) - (-48.23016655890593)) <= 1e-7 * greatest(1, abs(-48.23016655890593));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gamma_fit(x).aic FROM inverse_gamma_data) - (100.46033311781186)) <= 1e-7 * greatest(1, abs(100.46033311781186));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gamma_fit(x).bic FROM inverse_gamma_data) - (104.95732360191057)) <= 1e-7 * greatest(1, abs(104.95732360191057));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_fit(x).location FROM logistic_data) - (-1.2504398288338707)) <= 1e-6 * greatest(1, abs(-1.2504398288338707));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_fit(x).scale FROM logistic_data) - (0.6644021710417941)) <= 1e-6 * greatest(1, abs(0.6644021710417941));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_fit(x).log_likelihood FROM logistic_data) - (-111.1249290485897)) <= 1e-7 * greatest(1, abs(-111.1249290485897));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_fit(x).aic FROM logistic_data) - (226.2498580971794)) <= 1e-7 * greatest(1, abs(226.2498580971794));
+----
+true
+
+query I
+SELECT abs((SELECT dist_logistic_fit(x).bic FROM logistic_data) - (230.74684858127813)) <= 1e-7 * greatest(1, abs(230.74684858127813));
+----
+true
+
+query I
+SELECT abs((SELECT dist_cauchy_fit(x).location FROM cauchy_data) - (2.0883269439679086)) <= 1e-6 * greatest(1, abs(2.0883269439679086));
+----
+true
+
+query I
+SELECT abs((SELECT dist_cauchy_fit(x).scale FROM cauchy_data) - (0.496561829134213)) <= 1e-6 * greatest(1, abs(0.496561829134213));
+----
+true
+
+query I
+SELECT abs((SELECT dist_cauchy_fit(x).log_likelihood FROM cauchy_data) - (-116.82404052100827)) <= 1e-7 * greatest(1, abs(-116.82404052100827));
+----
+true
+
+query I
+SELECT abs((SELECT dist_cauchy_fit(x).aic FROM cauchy_data) - (237.64808104201654)) <= 1e-7 * greatest(1, abs(237.64808104201654));
+----
+true
+
+query I
+SELECT abs((SELECT dist_cauchy_fit(x).bic FROM cauchy_data) - (242.14507152611526)) <= 1e-7 * greatest(1, abs(242.14507152611526));
+----
+true
+
+query I
+SELECT abs((SELECT dist_extreme_value_fit(x).location FROM extreme_value_data) - (3.2045965440427073)) <= 1e-6 * greatest(1, abs(3.2045965440427073));
+----
+true
+
+query I
+SELECT abs((SELECT dist_extreme_value_fit(x).scale FROM extreme_value_data) - (1.725315193051147)) <= 1e-6 * greatest(1, abs(1.725315193051147));
+----
+true
+
+query I
+SELECT abs((SELECT dist_extreme_value_fit(x).log_likelihood FROM extreme_value_data) - (-147.98315098421708)) <= 1e-7 * greatest(1, abs(-147.98315098421708));
+----
+true
+
+query I
+SELECT abs((SELECT dist_extreme_value_fit(x).aic FROM extreme_value_data) - (299.96630196843415)) <= 1e-7 * greatest(1, abs(299.96630196843415));
+----
+true
+
+query I
+SELECT abs((SELECT dist_extreme_value_fit(x).bic FROM extreme_value_data) - (304.46329245253287)) <= 1e-7 * greatest(1, abs(304.46329245253287));
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x).shape FROM weibull_data) - (2.466625046275425)) <= 1e-10 * greatest(1, abs(2.466625046275425));
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x).scale FROM weibull_data) - (1.671356935550349)) <= 1e-10 * greatest(1, abs(1.671356935550349));
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x).log_likelihood FROM weibull_data) - (-65.18300038729814)) <= 1e-7 * greatest(1, abs(-65.18300038729814));
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x).aic FROM weibull_data) - (134.36600077459627)) <= 1e-7 * greatest(1, abs(134.36600077459627));
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x).bic FROM weibull_data) - (138.862991258695)) <= 1e-7 * greatest(1, abs(138.862991258695));
+----
+true
+
+query I
+SELECT abs((SELECT dist_chi_squared_fit(x).degrees_of_freedom FROM chi_squared_data) - (4.800846522269236)) <= 1e-6 * greatest(1, abs(4.800846522269236));
+----
+true
+
+query I
+SELECT abs((SELECT dist_chi_squared_fit(x).log_likelihood FROM chi_squared_data) - (-169.18033133534718)) <= 1e-7 * greatest(1, abs(-169.18033133534718));
+----
+true
+
+query I
+SELECT abs((SELECT dist_chi_squared_fit(x).aic FROM chi_squared_data) - (340.36066267069435)) <= 1e-7 * greatest(1, abs(340.36066267069435));
+----
+true
+
+query I
+SELECT abs((SELECT dist_chi_squared_fit(x).bic FROM chi_squared_data) - (342.60915791274374)) <= 1e-7 * greatest(1, abs(342.60915791274374));
+----
+true
+
+query I
+SELECT abs((SELECT dist_students_t_fit(x).degrees_of_freedom FROM students_t_data) - (3.6284761871839497)) <= 1e-5 * greatest(1, abs(3.6284761871839497));
+----
+true
+
+query I
+SELECT abs((SELECT dist_students_t_fit(x).log_likelihood FROM students_t_data) - (-205.19052190613252)) <= 1e-7 * greatest(1, abs(-205.19052190613252));
+----
+true
+
+query I
+SELECT abs((SELECT dist_students_t_fit(x).aic FROM students_t_data) - (412.38104381226503)) <= 1e-7 * greatest(1, abs(412.38104381226503));
+----
+true
+
+query I
+SELECT abs((SELECT dist_students_t_fit(x).bic FROM students_t_data) - (415.1685355550471)) <= 1e-7 * greatest(1, abs(415.1685355550471));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gaussian_fit(x).mean FROM inverse_gaussian_data) - (1.5848482428571429)) <= 1e-9 * greatest(1, abs(1.5848482428571429));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gaussian_fit(x).shape FROM inverse_gaussian_data) - (2.796771855082278)) <= 1e-9 * greatest(1, abs(2.796771855082278));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gaussian_fit(x).log_likelihood FROM inverse_gaussian_data) - (-89.81210353531436)) <= 1e-7 * greatest(1, abs(-89.81210353531436));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gaussian_fit(x).aic FROM inverse_gaussian_data) - (183.62420707062873)) <= 1e-7 * greatest(1, abs(183.62420707062873));
+----
+true
+
+query I
+SELECT abs((SELECT dist_inverse_gaussian_fit(x).bic FROM inverse_gaussian_data) - (188.12119755472744)) <= 1e-7 * greatest(1, abs(188.12119755472744));
+----
+true
+
+query I
+SELECT abs((SELECT dist_laplace_fit(x).location FROM laplace_data) - (0.558644)) <= 1e-9 * greatest(1, abs(0.558644));
+----
+true
+
+query I
+SELECT abs((SELECT dist_laplace_fit(x).scale FROM laplace_data) - (1.908774225352113)) <= 1e-9 * greatest(1, abs(1.908774225352113));
+----
+true
+
+query I
+SELECT abs((SELECT dist_laplace_fit(x).log_likelihood FROM laplace_data) - (-166.1121999334319)) <= 1e-7 * greatest(1, abs(-166.1121999334319));
+----
+true
+
+query I
+SELECT abs((SELECT dist_laplace_fit(x).aic FROM laplace_data) - (336.2243998668638)) <= 1e-7 * greatest(1, abs(336.2243998668638));
+----
+true
+
+query I
+SELECT abs((SELECT dist_laplace_fit(x).bic FROM laplace_data) - (340.7497596209464)) <= 1e-7 * greatest(1, abs(340.7497596209464));
+----
+true
+
+query I
+SELECT abs((SELECT dist_binomial_fit(x, 12).prob FROM binomial_data) - (0.3904761904761905)) <= 1e-9 * greatest(1, abs(0.3904761904761905));
+----
+true
+
+query I
+SELECT abs((SELECT dist_binomial_fit(x, 12).log_likelihood FROM binomial_data) - (-127.88260154121271)) <= 1e-7 * greatest(1, abs(-127.88260154121271));
+----
+true
+
+query I
+SELECT abs((SELECT dist_binomial_fit(x, 12).aic FROM binomial_data) - (257.7652030824254)) <= 1e-7 * greatest(1, abs(257.7652030824254));
+----
+true
+
+query I
+SELECT abs((SELECT dist_binomial_fit(x, 12).bic FROM binomial_data) - (260.0136983244748)) <= 1e-7 * greatest(1, abs(260.0136983244748));
+----
+true
+
+query I
+SELECT abs((SELECT dist_negative_binomial_fit(x).successes FROM negative_binomial_data) - (6.0)) <= 1e-9 * greatest(1, abs(6.0));
+----
+true
+
+query I
+SELECT abs((SELECT dist_negative_binomial_fit(x).prob FROM negative_binomial_data) - (0.5060918462980319)) <= 1e-9 * greatest(1, abs(0.5060918462980319));
+----
+true
+
+query I
+SELECT abs((SELECT dist_negative_binomial_fit(x).log_likelihood FROM negative_binomial_data) - (-232.66991113057313)) <= 1e-7 * greatest(1, abs(-232.66991113057313));
+----
+true
+
+query I
+SELECT abs((SELECT dist_negative_binomial_fit(x).aic FROM negative_binomial_data) - (469.33982226114625)) <= 1e-7 * greatest(1, abs(469.33982226114625));
+----
+true
+
+query I
+SELECT abs((SELECT dist_negative_binomial_fit(x).bic FROM negative_binomial_data) - (474.3394416018068)) <= 1e-7 * greatest(1, abs(474.3394416018068));
+----
+true
+
 # The fitted parameters plug straight back into the distribution functions
 query I
 SELECT dist_normal_cdf(f.mean, f.stddev, f.mean) FROM (SELECT dist_normal_fit(x) AS f FROM normal_data);
@@ -131,7 +591,7 @@ SELECT dist_normal_cdf(f.mean, f.stddev, f.mean) FROM (SELECT dist_normal_fit(x)
 query I
 SELECT typeof(dist_gamma_fit(x)) FROM gamma_data;
 ----
-STRUCT(shape DOUBLE, scale DOUBLE)
+STRUCT(shape DOUBLE, scale DOUBLE, log_likelihood DOUBLE, aic DOUBLE, bic DOUBLE)
 
 # Fitting works per group and in parallel
 statement ok
@@ -190,6 +650,99 @@ statement error
 SELECT dist_normal_fit(x) FROM (VALUES ('nan'::DOUBLE)) t(x);
 ----
 normal: fit values must be finite, got nan
+
+# AIC picks the distribution that generated the data
+query I
+SELECT (SELECT dist_gamma_fit(x).aic FROM gamma_data) < (SELECT dist_normal_fit(x).aic FROM gamma_data);
+----
+true
+
+query I
+SELECT (SELECT dist_cauchy_fit(x).aic FROM cauchy_data) < (SELECT dist_logistic_fit(x).aic FROM cauchy_data);
+----
+true
+
+# Fits that collect the sample work per group and in parallel
+query I
+SELECT bool_and(abs(f.shape - 2.0) < 0.05 AND abs(f.scale - 3.0) < 0.05) FROM (
+    SELECT dist_weibull_fit(dist_weibull_sample(2.0, 3.0)) AS f FROM range(400000) t(i) GROUP BY i % 4
+);
+----
+true
+
+query I
+SELECT bool_and(abs(f.location - 1.0) < 0.05 AND abs(f.scale - 2.0) < 0.05) FROM (
+    SELECT dist_cauchy_fit(dist_cauchy_sample(1.0, 2.0)) AS f FROM range(400000) t(i) GROUP BY i % 4
+);
+----
+true
+
+query I
+SELECT bool_and(f.successes BETWEEN 4 AND 6) FROM (
+    SELECT dist_negative_binomial_fit(dist_negative_binomial_sample(5, 0.3)) AS f FROM range(400000) t(i) GROUP BY i % 4
+);
+----
+true
+
+# The Weibull shape does not depend on the scale of the data, even near the limits of DOUBLE
+query I
+SELECT abs((SELECT dist_weibull_fit(x::DOUBLE * 1e300).shape FROM weibull_data) - (SELECT dist_weibull_fit(x).shape FROM weibull_data)) < 1e-9;
+----
+true
+
+query I
+SELECT abs((SELECT dist_weibull_fit(x::DOUBLE * 1e-300).scale FROM weibull_data) / (SELECT dist_weibull_fit(x).scale FROM weibull_data) * 1e300 - 1) < 1e-9;
+----
+true
+
+# The fitted negative binomial plugs back in once successes is cast to BIGINT
+query I
+SELECT dist_negative_binomial_cdf(f.successes::BIGINT, f.prob, 1000) > 0.999 FROM (SELECT dist_negative_binomial_fit(x) AS f FROM negative_binomial_data);
+----
+true
+
+# Samples without overdispersion have no negative binomial fit
+query I
+SELECT dist_negative_binomial_fit(x) FROM (VALUES (1.0), (2.0), (3.0)) t(x);
+----
+NULL
+
+# Tails lighter than normal leave the Student's t degrees of freedom unbounded
+query I
+SELECT dist_students_t_fit(i / 100.0) FROM range(-100, 101) t(i);
+----
+NULL
+
+# The number of binomial trials must be the same for every row of a group
+statement error
+SELECT dist_binomial_fit(x, t) FROM (VALUES (1.0, 5), (2.0, 6)) v(x, t);
+----
+binomial: distribution parameters must be the same for every row of a group
+
+statement error
+SELECT dist_binomial_fit(x, 5) FROM (VALUES (6.0)) v(x);
+----
+binomial: fit values must be integers between 0 and trials, got 6
+
+statement error
+SELECT dist_weibull_fit(x) FROM (VALUES (1.0), (0.0)) v(x);
+----
+weibull: fit values must be > 0, got 0
+
+statement error
+SELECT dist_negative_binomial_fit(x) FROM (VALUES (1.5)) v(x);
+----
+negative_binomial: fit values must be non-negative integers, got 1.5
+
+query IIII
+SELECT dist_weibull_fit(x), dist_cauchy_fit(x), dist_laplace_fit(x), dist_inverse_gaussian_fit(x) FROM (VALUES (2.0), (2.0)) t(x);
+----
+NULL	NULL	NULL	NULL
+
+query I
+SELECT dist_logistic_fit(x) FROM (SELECT 1.0 AS x WHERE false);
+----
+NULL
 
 # Fit, then test the fit
 query I
