@@ -333,8 +333,8 @@ void ExecuteDistribution(DataChunk &args, Vector &result, Make &&make, Op &&op) 
 	}
 }
 
-//! Wraps a property computation so that an undefined property (e.g. the mean of a Cauchy distribution, or the
-//! variance of Student's t with df <= 1) yields NULL rather than an error.
+//! Wraps a property computation so that an undefined or unavailable property (e.g. the mean of a Cauchy
+//! distribution, or the variance of Student's t with df <= 2) yields NULL rather than an error.
 template <class Fn>
 auto UndefinedAsNull(Fn fn) {
 	return [fn](const auto &dist) -> std::optional<double> {
@@ -346,6 +346,11 @@ auto UndefinedAsNull(Fn fn) {
 			return value;
 		} catch (MathError &error) {
 			if (error.kind == MathError::Kind::INVALID_ARGUMENT) {
+				return std::nullopt;
+			}
+			// Boost reports properties it does not implement (non-central beta skewness and kurtosis) this way
+			if (error.kind == MathError::Kind::EVALUATION &&
+			    error.message.find("not yet implemented") != string::npos) {
 				return std::nullopt;
 			}
 			throw;

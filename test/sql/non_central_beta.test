@@ -45,3 +45,10 @@ SELECT abs(quantile_cont(s, 0.8) - dist_non_central_beta_quantile(2.0, 3.0, 1.0,
 FROM (SELECT unnest(dist_non_central_beta_samples(2.0, 3.0, 1.0, 200000)) AS s);
 ----
 true
+
+# Boost does not implement these moments for the non-central beta
+query RRR
+SELECT dist_non_central_beta_skewness(2.0, 3.0, 1.0), dist_non_central_beta_kurtosis(2.0, 3.0, 1.0),
+       dist_non_central_beta_kurtosis_excess(2.0, 3.0, 1.0);
+----
+NULL	NULL	NULL
