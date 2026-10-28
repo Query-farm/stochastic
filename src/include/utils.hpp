@@ -560,6 +560,19 @@ double DiscreteQuantile(const Dist &dist, double p, bool complement, double quan
 	return x;
 }
 
+//! Converts a quantile to the function's result type. An infinite quantile (e.g. at p = 1 for an unbounded
+//! discrete distribution) cannot be returned as BIGINT.
+template <class Spec, class T>
+T ConvertQuantile(double quantile) {
+	if constexpr (std::is_integral<T>::value) {
+		if (!(std::abs(quantile) < std::ldexp(1.0, 63))) {
+			throw InvalidInputException("%s: quantile is %s and cannot be returned as BIGINT", Spec::name,
+			                            FormatParameter(quantile));
+		}
+	}
+	return static_cast<T>(quantile);
+}
+
 //! Registers sample, samples, the density, cumulative, quantile and hazard functions, and the distribution
 //! properties. Properties that are undefined for the given parameters return NULL.
 template <class Spec>
@@ -631,7 +644,8 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	RegisterEvaluation<Spec, quantile_t, X>(
 	    loader, "quantile",
 	    [](const auto &dist, double p) -> quantile_t {
-		    return static_cast<quantile_t>(DiscreteQuantile<Spec>(dist, p, false, boost::math::quantile(dist, p)));
+		    return ConvertQuantile<Spec, quantile_t>(
+		        DiscreteQuantile<Spec>(dist, p, false, boost::math::quantile(dist, p)));
 	    },
 	    {"Computes the quantile function (inverse CDF) of the " + text +
 	         ". Returns the smallest x such that P(X <= x) >= p.",
@@ -640,7 +654,7 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	RegisterEvaluation<Spec, quantile_t, X>(
 	    loader, "quantile_complement",
 	    [](const auto &dist, double p) -> quantile_t {
-		    return static_cast<quantile_t>(
+		    return ConvertQuantile<Spec, quantile_t>(
 		        DiscreteQuantile<Spec>(dist, p, true, boost::math::quantile(boost::math::complement(dist, p))));
 	    },
 	    {"Computes the complementary quantile function of the " + text +

@@ -299,3 +299,19 @@ query I
 SELECT dist_hypergeometric_support(10, 5, 50);
 ----
 [0.0, 5.0]
+
+# An infinite quantile cannot be returned as BIGINT
+statement error
+SELECT dist_negative_binomial_quantile(10, 0.5, 1.0);
+----
+negative_binomial: quantile is inf and cannot be returned as BIGINT
+
+statement error
+SELECT dist_negative_binomial_quantile_complement(10, 0.5, 0.0);
+----
+negative_binomial: quantile is inf and cannot be returned as BIGINT
+
+query IIR
+SELECT dist_binomial_quantile(10, 0.5, 1.0), dist_hypergeometric_quantile(10, 5, 50, 1.0), dist_poisson_quantile(5, 1.0);
+----
+10	5	inf
