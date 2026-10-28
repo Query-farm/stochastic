@@ -28,6 +28,12 @@ public:
 
 //! Replaces wording in Boost messages that refers to its internals.
 inline void RewriteBoostPhrases(std::string &result) {
+	// Platforms spell NaN differently (nan, -nan, -nan(ind)); report it the same everywhere
+	for (const char *spelling : {"-nan(ind)", "nan(ind)", "-nan"}) {
+		for (auto pos = result.find(spelling); pos != std::string::npos; pos = result.find(spelling, pos)) {
+			result.replace(pos, std::string(spelling).size(), "nan");
+		}
+	}
 	// Boost's root finders name themselves in this message
 	const std::string no_root =
 	    "There appears to be no root to be found in boost::math::tools::newton_raphson_iterate, "

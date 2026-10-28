@@ -4,6 +4,6 @@ namespace duckdb {
 
 // Extension version in format YYYYMMDDCC (date + ordinal counter)
 // Update this version when making changes
-constexpr const char *STOCHASTIC_VERSION = "2026102811";
+constexpr const char *STOCHASTIC_VERSION = "2026102812";
 
 } // namespace duckdb
