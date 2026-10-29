@@ -1,5 +1,5 @@
 # name: test/sql/fits.test
-# description: dist_fits ranks several fits of one sample by AIC
+# description: dist_fits ranks several fits of one sample by AICc
 # group: [sql]
 
 require stochastic
@@ -9,107 +9,130 @@ CREATE TABLE repair_hours AS
 SELECT * FROM (VALUES (1.2), (0.7), (2.9), (1.8), (0.4), (3.6), (1.1), (2.2),
                       (5.3), (0.9), (1.6), (2.4), (0.8), (3.1), (1.4)) t(hours);
 
-# By default every continuous fit except the standard Student's t is tried; beta is left out because the values
-# are not all in (0, 1)
-query T
-SELECT list_transform(dist_fits(hours), lambda f: f.distribution) FROM repair_hours;
+# By default the continuous fits other than the uniform, Pareto and standard Student's t are tried. The beta cannot
+# fit values outside (0, 1), so it comes last with a note.
+query TT
+SELECT list_transform(f, lambda r: r.distribution), list_transform(f, lambda r: r.note)[-1]
+FROM (SELECT dist_fits(hours) f FROM repair_hours);
 ----
-[inverse_gaussian, rayleigh, lognormal, gamma, weibull, inverse_gamma, extreme_value, chi_squared, uniform_real, exponential, logistic, normal, laplace, cauchy, pareto]
+[rayleigh, inverse_gaussian, lognormal, gamma, weibull, inverse_gamma, extreme_value, chi_squared, exponential, logistic, normal, laplace, cauchy, beta]	values must be between 0 and 1 (exclusive), got 1.2
 
-# Each row is the same fit as the distribution's own fit function
+# Each ranked row is the fit of the distribution's own fit function, and aicc = aic + 2k(k + 1) / (n - k - 1)
 query IIIII
-WITH ranked AS (SELECT unnest(dist_fits(hours), recursive := true) FROM repair_hours),
+WITH ranked AS (SELECT unnest(dist_fits(hours), recursive := true) FROM repair_hours WHERE true),
 own AS (SELECT dist_gamma_fit(hours) g, dist_weibull_fit(hours) w, dist_lognormal_fit(hours) l FROM repair_hours)
 SELECT
   bool_and(CASE distribution
     WHEN 'gamma' THEN parameters['shape'] = g.shape AND parameters['scale'] = g.scale AND aic = g.aic AND bic = g.bic
-    WHEN 'weibull' THEN parameters['shape'] = w.shape AND parameters['scale'] = w.scale AND log_likelihood = w.log_likelihood
+    WHEN 'weibull' THEN abs(parameters['shape'] / w.shape - 1) < 1e-12 AND abs(log_likelihood / w.log_likelihood - 1) < 1e-12
     WHEN 'lognormal' THEN parameters['mean'] = l.mean AND parameters['stddev'] = l.stddev AND aic = l.aic
     ELSE true END),
-  count(*),
-  min(delta_aic),
-  abs(sum(aic_weight) - 1) < 1e-12,
-  bool_and(abs(aic_weight - exp(-delta_aic / 2) / (SELECT sum(exp(-delta_aic / 2)) FROM ranked)) < 1e-15)
+  bool_and(note IS NOT NULL OR abs(aicc - (aic + 2 * cardinality(parameters) * (cardinality(parameters) + 1) / (15 - cardinality(parameters) - 1))) < 1e-12),
+  count(aicc),
+  abs(sum(aicc_weight) - 1) < 1e-12,
+  bool_and(note IS NOT NULL OR abs(aicc_weight - exp(-delta_aicc / 2) / (SELECT sum(exp(-delta_aicc / 2)) FROM ranked)) < 1e-15)
 FROM ranked, own;
 ----
-true	15	0.0	true	true
+true	true	13	true	true
 
-# Ordered by AIC, and delta_aic is the difference from the best
+# Ordered by AICc, and delta_aicc is the difference from the best
 query II
-SELECT list_sort(list_transform(f, lambda x: x.aic)) = list_transform(f, lambda x: x.aic),
-       list_transform(f, lambda x: x.aic - f[1].aic) = list_transform(f, lambda x: x.delta_aic)
-FROM (SELECT dist_fits(hours) f FROM repair_hours);
+SELECT list_sort(list_transform(r, lambda x: x.aicc)) = list_transform(r, lambda x: x.aicc),
+       list_transform(r, lambda x: x.aicc - r[1].aicc) = list_transform(r, lambda x: x.delta_aicc)
+FROM (SELECT list_filter(dist_fits(hours), lambda x: x.note IS NULL) r FROM repair_hours);
 ----
 true	true
 
-# Named candidates, in any order
-query TRRR
-SELECT distribution, round(aic, 2), round(bic, 2), round(aic_weight, 4)
+# Named candidates, in any order. AICc and weights computed independently from the AICs.
+query TRRRR
+SELECT distribution, round(aic, 2), round(aicc, 2), round(bic, 2), round(aicc_weight, 4)
 FROM (SELECT unnest(dist_fits(hours, ['normal', 'exponential', 'weibull', 'lognormal', 'gamma']), recursive := true) FROM repair_hours);
 ----
-lognormal	48.5	49.92	0.3537
-gamma	48.65	50.07	0.3279
-weibull	49.28	50.7	0.2393
-exponential	52.19	52.9	0.056
-normal	53.96	55.38	0.0231
+lognormal	48.5	49.5	49.92	0.3457
+gamma	48.65	49.65	50.07	0.3205
+weibull	49.28	50.28	50.7	0.2339
+exponential	52.19	52.5	52.9	0.0773
+normal	53.96	54.96	55.38	0.0225
+
+# The uniform, Pareto and standard Student's t are only tried when named
+query T
+SELECT list_sort(list_transform(dist_fits(hours, ['students_t', 'uniform_real', 'pareto', 'normal']), lambda f: f.distribution)) FROM repair_hours;
+----
+[normal, pareto, students_t, uniform_real]
+
+# Candidates that cannot be ranked come last, in the order given, with the reason
+query TTT
+SELECT f.distribution, f.parameters IS NULL AND f.aicc IS NULL AND f.aicc_weight IS NULL, f.note
+FROM (SELECT unnest(dist_fits(x, ['gamma', 'normal', 'weibull'])) f FROM (VALUES (-1.5), (0.5), (2.0), (0.7)) t(x));
+----
+normal	false	NULL
+gamma	true	values must be > 0, got -1.5
+weibull	true	values must be > 0, got -1.5
 
 query T
-SELECT list_transform(dist_fits(hours, ['students_t', 'normal']), lambda f: f.distribution) FROM repair_hours;
+SELECT list_sort(list_transform(list_filter(dist_fits(x), lambda f: f.note IS NULL), lambda f: f.distribution))
+FROM (VALUES (-1.5), (0.5), (2.0), (0.1), (-0.3)) t(x);
 ----
-[normal, students_t]
+[cauchy, extreme_value, laplace, logistic, normal]
 
-# Candidates whose support does not cover the values are left out
-query T
-SELECT list_sort(list_transform(dist_fits(x), lambda f: f.distribution)) FROM (VALUES (-1.5), (0.5), (2.0), (0.1), (-0.3)) t(x);
+# AICc needs more than k + 1 values; the fit is still reported
+query TIRT
+SELECT f.distribution, f.aic = CASE f.distribution WHEN 'gamma' THEN g.aic ELSE e.aic END, round(f.aic, 4), f.note
+FROM (SELECT unnest(dist_fits(x, ['gamma', 'exponential'])) f, dist_gamma_fit(x) g, dist_exponential_fit(x) e
+      FROM (VALUES (1.0), (2.0), (4.0)) t(x));
 ----
-[cauchy, extreme_value, laplace, logistic, normal, uniform_real]
+exponential	true	13.0838	NULL
+gamma	true	13.2925	too few values to rank; AICc needs at least 4
 
-query T
-SELECT list_transform(dist_fits(x, ['gamma', 'normal']), lambda f: f.distribution) FROM (VALUES (-1.5), (0.5), (2.0)) t(x);
+query TT
+SELECT f.distribution, f.note FROM (SELECT unnest(dist_fits(x, ['normal', 'students_t'])) f FROM (VALUES (1.0), (1.0), (1.0)) t(x));
 ----
-[normal]
+normal	too few values, or the values are all the same
+students_t	too few values, or the tails are no heavier than normal, so the degrees of freedom are unbounded
 
-# The beta is tried only when every value is in (0, 1)
+# The beta is ranked only when every value is in (0, 1)
 query II
-SELECT list_contains(list_transform(dist_fits(x), lambda f: f.distribution), 'beta'),
-       list_contains(list_transform(dist_fits(x + 1), lambda f: f.distribution), 'beta')
+SELECT list_filter(dist_fits(x), lambda f: f.distribution = 'beta')[1].note IS NULL,
+       list_filter(dist_fits(x + 1), lambda f: f.distribution = 'beta')[1].note IS NULL
 FROM (VALUES (0.2), (0.5), (0.35), (0.9), (0.6)) t(x);
 ----
 true	false
 
 # Discrete candidates
-query TT
-SELECT f.distribution, f.parameters
-FROM (SELECT unnest(dist_fits(x, ['poisson', 'negative_binomial', 'geometric'])) f FROM (VALUES (1), (3), (0), (7), (2), (2)) t(x));
+query TTT
+SELECT f.distribution, f.parameters, regexp_replace(f.note, ', got .*', '')
+FROM (SELECT unnest(dist_fits(x, ['poisson', 'negative_binomial', 'geometric', 'bernoulli'])) f FROM (VALUES (1), (3), (0), (7), (2), (2)) t(x));
 ----
-geometric	{prob=0.2857142857142857}
-poisson	{rate=2.5}
-negative_binomial	{successes=3.0, prob=0.5454545454545454}
+geometric	{prob=0.2857142857142857}	NULL
+poisson	{rate=2.5}	NULL
+negative_binomial	{successes=3.0, prob=0.5454545454545454}	NULL
+bernoulli	NULL	values must be 0 or 1
 
 query T
-SELECT list_transform(dist_fits(x, ['poisson', 'bernoulli']), lambda f: f.distribution) FROM (VALUES (1), (3), (0)) t(x);
+SELECT list_transform(dist_fits(x, ['poisson', 'negative_binomial']), lambda f: f.note)[2] FROM (VALUES (1), (3), (0), (2)) t(x);
 ----
-[poisson]
+too few values, or the variance does not exceed the mean
 
-# NULLs are ignored; no values, or values no candidate fits, give NULL
+# NULLs are ignored and no values give NULL; values no candidate can rank give only notes
 query II
 SELECT dist_fits(x) IS NULL, dist_fits(x, ['gamma']) IS NULL FROM (SELECT NULL::DOUBLE x);
 ----
 true	true
 
+query T
+SELECT list_transform(dist_fits(x, ['gamma', 'weibull']), lambda f: f.note IS NOT NULL) FROM (VALUES (-1.0), (2.0)) t(x);
+----
+[true, true]
+
 query I
-SELECT dist_fits(x, ['gamma', 'weibull']) IS NULL FROM (VALUES (-1.0), (2.0)) t(x);
+SELECT (SELECT dist_fits(x) FROM (VALUES (1.0), (NULL), (2.0), (4.0), (3.5), (0.5)) t(x)) =
+       (SELECT dist_fits(x) FROM (VALUES (1.0), (2.0), (4.0), (3.5), (0.5)) t(x));
 ----
 true
 
-query I
-SELECT len(dist_fits(x)) FROM (VALUES (1.0), (NULL), (2.0), (4.0)) t(x);
-----
-15
-
-# Groups, and the same result whatever the parallelism
+# Groups, and the same ranking whatever the order of the values
 query II
-SELECT g, list_transform(dist_fits(x, ['exponential', 'normal']), lambda f: f.distribution)[1]
+SELECT g, dist_fits(x, ['exponential', 'normal'])[1].distribution
 FROM (SELECT i % 2 g, CASE WHEN i % 2 = 0 THEN -ln((i + 0.5) / 20000) ELSE 5 + sin(i) END x FROM range(20000) r(i))
 GROUP BY g ORDER BY g;
 ----
@@ -120,10 +143,39 @@ query II
 WITH a AS (SELECT dist_fits(x) f FROM (SELECT -ln((i + 0.5) / 100000) * 2 x FROM range(100000) r(i))),
      b AS (SELECT dist_fits(x) f FROM (SELECT -ln((i + 0.5) / 100000) * 2 x FROM range(100000) r(i) ORDER BY i DESC))
 SELECT list_transform(a.f, lambda r: r.distribution) = list_transform(b.f, lambda r: r.distribution),
-       list_max(list_transform(list_zip(a.f, b.f), lambda p: abs(p[1].aic - p[2].aic) / abs(p[1].aic))) < 1e-9
+       list_max(list_transform(list_filter(list_zip(a.f, b.f), lambda p: p[1].aicc IS NOT NULL),
+                               lambda p: abs(p[1].aicc - p[2].aicc) / abs(p[1].aicc))) < 1e-9
 FROM a, b;
 ----
 true	true
+
+# Fits that need the whole sample share it; their results match their own fit functions on a large sample
+query I
+WITH s AS (SELECT 2 * pow(-ln((i + 0.5) / 50000), 1 / 1.7) x FROM range(50000) r(i)),
+f AS (SELECT dist_fits(x, ['weibull', 'logistic', 'laplace', 'cauchy', 'extreme_value', 'gamma']) f FROM s),
+own AS (SELECT dist_weibull_fit(x) w, dist_logistic_fit(x) l, dist_laplace_fit(x) la, dist_cauchy_fit(x) c, dist_extreme_value_fit(x) e FROM s)
+SELECT bool_and(CASE r.distribution
+  WHEN 'weibull' THEN abs(r.log_likelihood / w.log_likelihood - 1) < 1e-12
+  WHEN 'logistic' THEN abs(r.log_likelihood / l.log_likelihood - 1) < 1e-12
+  WHEN 'laplace' THEN abs(r.log_likelihood / la.log_likelihood - 1) < 1e-12
+  WHEN 'cauchy' THEN abs(r.log_likelihood / c.log_likelihood - 1) < 1e-12
+  WHEN 'extreme_value' THEN abs(r.log_likelihood / e.log_likelihood - 1) < 1e-12
+  ELSE true END)
+FROM (SELECT unnest(f) r FROM f), own;
+----
+true
+
+# The candidates survive plan serialization
+statement ok
+SET debug_verify_serializer = true;
+
+query T
+SELECT list_transform(dist_fits(hours, ['weibull', 'gamma']), lambda f: f.distribution) FROM repair_hours;
+----
+[gamma, weibull]
+
+statement ok
+SET debug_verify_serializer = false;
 
 # Errors
 statement error

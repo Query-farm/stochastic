@@ -1,5 +1,9 @@
 #include "utils.hpp"
 
+#include "duckdb/common/error_data.hpp"
+#include "duckdb/common/serializer/deserializer.hpp"
+#include "duckdb/common/serializer/serializer.hpp"
+
 #include <boost/math/constants/constants.hpp>
 #include <boost/math/special_functions/digamma.hpp>
 #include <boost/math/special_functions/gamma.hpp>
@@ -61,6 +65,8 @@ double XLogY(double x, double y) {
 struct FitBase {
 	//! Parameters in the result that were given rather than estimated (not counted by the AIC and BIC)
 	static constexpr idx_t fixed_parameters = 0;
+	//! Why Finalize returned NULL, reported by dist_fits
+	static constexpr const char *no_fit_note = "too few values, or the values are all the same";
 
 	template <class STATE>
 	static void Destroy(STATE &) {
@@ -995,6 +1001,8 @@ struct WeibullFit : CollectedFit<WeibullFit> {
 //! Degrees of freedom of the standard Student's t distribution, by golden section search over log(df).
 struct StudentsTFit : CollectedFit<StudentsTFit> {
 	static constexpr const char *name = "students_t";
+	static constexpr const char *no_fit_note =
+	    "too few values, or the tails are no heavier than normal, so the degrees of freedom are unbounded";
 	static constexpr std::array<const char *, 1> param_names = {"degrees_of_freedom"};
 	static constexpr double MIN_LOG_DF = -7;
 	static constexpr double MAX_LOG_DF = 18;
@@ -1059,6 +1067,7 @@ struct StudentsTFit : CollectedFit<StudentsTFit> {
 //! better of the neighbouring integers is returned. Samples without overdispersion (variance <= mean) give NULL.
 struct NegativeBinomialFit : CollectedFit<NegativeBinomialFit> {
 	static constexpr const char *name = "negative_binomial";
+	static constexpr const char *no_fit_note = "too few values, or the variance does not exceed the mean";
 	static constexpr std::array<const char *, 2> param_names = {"successes", "prob"};
 	static constexpr double MAX_SUCCESSES = 9007199254740992.0;
 
@@ -1149,9 +1158,10 @@ struct NegativeBinomialFit : CollectedFit<NegativeBinomialFit> {
 };
 
 //===--------------------------------------------------------------------===//
-// dist_fits(x [, candidates]): runs several fits over one sample and ranks them by AIC. The sample is collected
-// once and replayed through each candidate's fit operation at Finalize. A candidate that cannot fit the sample
-// (values outside its support, too few values, a fit that does not converge) is left out of the result.
+// dist_fits(x [, candidates]): runs several fits over one sample and ranks them by AICc. The sample is collected
+// once; at Finalize, fits with sufficient statistics replay it and fits that need the whole sample borrow it. A
+// candidate that cannot fit the sample (values outside its support, too few values, a fit that does not converge)
+// is listed after the ranked fits with a note saying why.
 //===--------------------------------------------------------------------===//
 
 struct FitSummary {
@@ -1160,44 +1170,87 @@ struct FitSummary {
 	double log_likelihood;
 	double aic;
 	double bic;
+	//! Not set when there are too few values for the small-sample correction
+	std::optional<double> aicc;
+	//! Why the candidate is not ranked
+	string note;
 };
 
+//! The message of a fit's error without the distribution name, e.g. "values must be > 0, got -1".
+string FitErrorNote(const char *distribution, const string &message) {
+	string note = message;
+	const string prefix = string(distribution) + ": ";
+	if (StringUtil::StartsWith(note, prefix)) {
+		note = note.substr(prefix.size());
+	}
+	if (StringUtil::StartsWith(note, "fit values")) {
+		note = note.substr(4);
+	}
+	return note;
+}
+
 template <class OP>
-std::optional<FitSummary> RunFit(const vector<double> &xs) {
+constexpr bool IS_COLLECTED_FIT = std::is_base_of<CollectedFit<OP>, OP>::value;
+
+//! Fits xs with OP. Fits that need the whole sample borrow xs and may reorder it.
+template <class OP>
+FitSummary RunFit(vector<double> &xs) {
 	using Fit = FitAggregate<OP>;
+	FitSummary summary {OP::name, {}, 0, 0, 0, std::nullopt, string()};
 	typename OP::State state {};
 	struct DestroyGuard {
 		typename OP::State &state;
 		~DestroyGuard() {
-			OP::Destroy(state);
+			if constexpr (IS_COLLECTED_FIT<OP>) {
+				state.values.values = nullptr;
+			} else {
+				OP::Destroy(state);
+			}
 		}
 	} guard {state};
 	try {
-		for (auto x : xs) {
-			OP::Update(state, x);
+		if constexpr (IS_COLLECTED_FIT<OP>) {
+			for (auto x : xs) {
+				OP::CheckDomain(x);
+			}
+			state.values.values = &xs;
+		} else {
+			for (auto x : xs) {
+				OP::Update(state, x);
+			}
 		}
 		auto result = Fit::Finalize(state);
 		if (!result) {
-			return std::nullopt;
+			summary.note = OP::no_fit_note;
+			return summary;
 		}
-		FitSummary summary {OP::name,
-		                    {},
-		                    (*result)[Fit::param_count],
-		                    (*result)[Fit::param_count + 1],
-		                    (*result)[Fit::param_count + 2]};
 		for (std::size_t i = 0; i < Fit::param_count; i++) {
 			summary.parameters.emplace_back(OP::param_names[i], (*result)[i]);
 		}
-		return summary;
-	} catch (InvalidInputException &) {
-		return std::nullopt;
-	} catch (MathError &) {
-		return std::nullopt;
+		summary.log_likelihood = (*result)[Fit::param_count];
+		summary.aic = (*result)[Fit::param_count + 1];
+		summary.bic = (*result)[Fit::param_count + 2];
+		// AICc = AIC + 2k(k + 1) / (n - k - 1), defined when n > k + 1
+		const double k = static_cast<double>(Fit::param_count - OP::fixed_parameters);
+		const double n = OP::Count(state);
+		if (n - k - 1 > 0) {
+			summary.aicc = summary.aic + 2 * k * (k + 1) / (n - k - 1);
+		} else {
+			summary.note =
+			    StringUtil::Format("too few values to rank; AICc needs at least %d", static_cast<int>(k) + 2);
+		}
+	} catch (InvalidInputException &error) {
+		summary.note = FitErrorNote(OP::name, ErrorData(error).RawMessage());
+	} catch (MathError &error) {
+		summary.note = error.message;
 	} catch (Exception &) {
 		throw;
-	} catch (std::exception &) {
-		return std::nullopt;
+	} catch (std::bad_alloc &) {
+		throw;
+	} catch (std::exception &error) {
+		summary.note = CleanBoostMessage(error.what());
 	}
+	return summary;
 }
 
 struct FitCandidate {
@@ -1205,17 +1258,17 @@ struct FitCandidate {
 	bool discrete;
 	//! Tried when no candidates are given
 	bool by_default;
-	std::optional<FitSummary> (*run)(const vector<double> &xs);
+	FitSummary (*run)(vector<double> &xs);
 };
 
-//! Every fit that takes only x. The standard Student's t has no location or scale, so it is only tried when named.
+//! Every fit that takes only x. Only named candidates include the standard Student's t, which has no location or
+//! scale, and the uniform and Pareto, whose fitted bounds are the sample extremes: their likelihoods are not regular,
+//! so their AIC favors them.
 const FitCandidate FIT_CANDIDATES[] = {
     {NormalFit::name, false, true, RunFit<NormalFit>},
     {LognormalFit::name, false, true, RunFit<LognormalFit>},
     {ExponentialFit::name, false, true, RunFit<ExponentialFit>},
     {RayleighFit::name, false, true, RunFit<RayleighFit>},
-    {UniformRealFit::name, false, true, RunFit<UniformRealFit>},
-    {ParetoFit::name, false, true, RunFit<ParetoFit>},
     {GammaFit::name, false, true, RunFit<GammaFit>},
     {InverseGammaFit::name, false, true, RunFit<InverseGammaFit>},
     {ChiSquaredFit::name, false, true, RunFit<ChiSquaredFit>},
@@ -1226,6 +1279,8 @@ const FitCandidate FIT_CANDIDATES[] = {
     {CauchyFit::name, false, true, RunFit<CauchyFit>},
     {ExtremeValueFit::name, false, true, RunFit<ExtremeValueFit>},
     {WeibullFit::name, false, true, RunFit<WeibullFit>},
+    {UniformRealFit::name, false, false, RunFit<UniformRealFit>},
+    {ParetoFit::name, false, false, RunFit<ParetoFit>},
     {StudentsTFit::name, false, false, RunFit<StudentsTFit>},
     {PoissonFit::name, true, false, RunFit<PoissonFit>},
     {BernoulliFit::name, true, false, RunFit<BernoulliFit>},
@@ -1233,10 +1288,10 @@ const FitCandidate FIT_CANDIDATES[] = {
     {NegativeBinomialFit::name, true, false, RunFit<NegativeBinomialFit>},
 };
 
-string CandidateNames(bool discrete, bool only_default = false) {
+string CandidateNames(bool discrete, bool by_default) {
 	string names;
 	for (auto &candidate : FIT_CANDIDATES) {
-		if (candidate.discrete == discrete && (candidate.by_default || !only_default)) {
+		if (candidate.discrete == discrete && candidate.by_default == by_default) {
 			names += names.empty() ? candidate.name : string(", ") + candidate.name;
 		}
 	}
@@ -1257,30 +1312,19 @@ struct FitsBindData : public FunctionData {
 	}
 };
 
-unique_ptr<FunctionData> FitsBind(BindAggregateFunctionInput &input) {
+//! The candidates with the given names, checked: known, distinct, not empty and not mixing discrete and continuous.
+vector<idx_t> FindCandidates(const vector<string> &names) {
 	vector<idx_t> candidates;
-	if (input.GetArguments().size() == 1) {
-		for (idx_t i = 0; i < std::size(FIT_CANDIDATES); i++) {
-			if (FIT_CANDIDATES[i].by_default) {
-				candidates.push_back(i);
-			}
-		}
-		return make_uniq<FitsBindData>(std::move(candidates));
-	}
-	auto list = input.GetNonNullConstant(1);
-	for (auto &value : ListValue::GetChildren(list)) {
-		if (value.IsNull()) {
-			throw InvalidInputException("dist_fits: candidates must not contain NULL");
-		}
-		const auto name = StringValue::Get(value);
+	for (auto &name : names) {
 		idx_t index = 0;
 		while (index < std::size(FIT_CANDIDATES) && name != FIT_CANDIDATES[index].name) {
 			index++;
 		}
 		if (index == std::size(FIT_CANDIDATES)) {
-			throw InvalidInputException("dist_fits: unknown candidate '%s'; the continuous candidates are %s and the "
-			                            "discrete candidates are %s",
-			                            name, CandidateNames(false), CandidateNames(true));
+			throw InvalidInputException("dist_fits: unknown candidate '%s'; the continuous candidates are %s, %s and "
+			                            "the discrete candidates are %s",
+			                            name, CandidateNames(false, true), CandidateNames(false, false),
+			                            CandidateNames(true, false));
 		}
 		if (std::find(candidates.begin(), candidates.end(), index) != candidates.end()) {
 			throw InvalidInputException("dist_fits: candidate '%s' is listed more than once", name);
@@ -1295,7 +1339,42 @@ unique_ptr<FunctionData> FitsBind(BindAggregateFunctionInput &input) {
 	if (candidates.empty()) {
 		throw InvalidInputException("dist_fits: candidates must not be empty");
 	}
-	return make_uniq<FitsBindData>(std::move(candidates));
+	return candidates;
+}
+
+unique_ptr<FunctionData> FitsBind(BindAggregateFunctionInput &input) {
+	if (input.GetArguments().size() == 1) {
+		vector<idx_t> candidates;
+		for (idx_t i = 0; i < std::size(FIT_CANDIDATES); i++) {
+			if (FIT_CANDIDATES[i].by_default) {
+				candidates.push_back(i);
+			}
+		}
+		return make_uniq<FitsBindData>(std::move(candidates));
+	}
+	vector<string> names;
+	const auto list = input.GetNonNullConstant(1);
+	for (auto &value : ListValue::GetChildren(list)) {
+		if (value.IsNull()) {
+			throw InvalidInputException("dist_fits: candidates must not contain NULL");
+		}
+		names.push_back(StringValue::Get(value));
+	}
+	return make_uniq<FitsBindData>(FindCandidates(names));
+}
+
+// The candidates are serialized by name, so plans stay valid when FIT_CANDIDATES changes
+void FitsSerialize(Serializer &serializer, const optional_ptr<FunctionData> bind_data, const BoundAggregateFunction &) {
+	vector<string> names;
+	for (auto index : bind_data->Cast<FitsBindData>().candidates) {
+		names.emplace_back(FIT_CANDIDATES[index].name);
+	}
+	serializer.WriteProperty(100, "candidates", names);
+}
+
+unique_ptr<FunctionData> FitsDeserialize(Deserializer &deserializer, BoundAggregateFunction &) {
+	auto names = deserializer.ReadProperty<vector<string>>(100, "candidates");
+	return make_uniq<FitsBindData>(FindCandidates(names));
 }
 
 LogicalType FitsResultType() {
@@ -1303,9 +1382,11 @@ LogicalType FitsResultType() {
 	                                    {"parameters", LogicalType::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE)},
 	                                    {"log_likelihood", LogicalType::DOUBLE},
 	                                    {"aic", LogicalType::DOUBLE},
+	                                    {"aicc", LogicalType::DOUBLE},
 	                                    {"bic", LogicalType::DOUBLE},
-	                                    {"delta_aic", LogicalType::DOUBLE},
-	                                    {"aic_weight", LogicalType::DOUBLE}};
+	                                    {"delta_aicc", LogicalType::DOUBLE},
+	                                    {"aicc_weight", LogicalType::DOUBLE},
+	                                    {"note", LogicalType::VARCHAR}};
 	return LogicalType::STRUCT(std::move(children));
 }
 
@@ -1336,40 +1417,47 @@ struct FitsAggregate {
 		}
 	}
 
-	//! The fits of the sample ordered by AIC, or NULL when no candidate fits it.
-	static Value Rank(const vector<double> &xs, const vector<idx_t> &candidates) {
+	//! The ranked fits of the sample ordered by AICc, followed by the candidates that were not ranked.
+	static Value Rank(vector<double> &xs, const vector<idx_t> &candidates) {
 		vector<FitSummary> fits;
 		for (auto index : candidates) {
-			auto fit = FIT_CANDIDATES[index].run(xs);
-			if (fit) {
-				fits.push_back(std::move(*fit));
+			fits.push_back(FIT_CANDIDATES[index].run(xs));
+		}
+		std::stable_sort(fits.begin(), fits.end(), [](const FitSummary &a, const FitSummary &b) {
+			if (a.aicc.has_value() != b.aicc.has_value()) {
+				return a.aicc.has_value();
+			}
+			return a.aicc.has_value() && *a.aicc < *b.aicc;
+		});
+		// Akaike weights: exp(-delta / 2), normalized over the ranked candidates
+		double weight_sum = 0;
+		for (auto &fit : fits) {
+			if (fit.aicc) {
+				weight_sum += std::exp(-(*fit.aicc - *fits[0].aicc) / 2);
 			}
 		}
 		const auto type = FitsResultType();
-		if (fits.empty()) {
-			return Value(LogicalType::LIST(type));
-		}
-		std::stable_sort(fits.begin(), fits.end(),
-		                 [](const FitSummary &a, const FitSummary &b) { return a.aic < b.aic; });
-		// Akaike weights: exp(-delta / 2), normalized over the candidates that fit
-		double weight_sum = 0;
-		for (auto &fit : fits) {
-			weight_sum += std::exp(-(fit.aic - fits[0].aic) / 2);
-		}
+		const Value null_double(LogicalType::DOUBLE);
 		vector<Value> rows;
 		for (auto &fit : fits) {
-			vector<Value> keys;
-			vector<Value> parameters;
-			for (auto &parameter : fit.parameters) {
-				keys.emplace_back(parameter.first);
-				parameters.emplace_back(parameter.second);
+			const bool fitted = !fit.parameters.empty();
+			Value parameters(LogicalType::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE));
+			if (fitted) {
+				vector<Value> keys;
+				vector<Value> values;
+				for (auto &parameter : fit.parameters) {
+					keys.emplace_back(parameter.first);
+					values.emplace_back(parameter.second);
+				}
+				parameters = Value::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE, std::move(keys), std::move(values));
 			}
-			const double delta = fit.aic - fits[0].aic;
+			const double delta = fit.aicc ? *fit.aicc - *fits[0].aicc : 0;
 			rows.push_back(Value::STRUCT(
-			    type, {Value(fit.distribution),
-			           Value::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE, std::move(keys), std::move(parameters)),
-			           Value::DOUBLE(fit.log_likelihood), Value::DOUBLE(fit.aic), Value::DOUBLE(fit.bic),
-			           Value::DOUBLE(delta), Value::DOUBLE(std::exp(-delta / 2) / weight_sum)}));
+			    type, {Value(fit.distribution), parameters, fitted ? Value::DOUBLE(fit.log_likelihood) : null_double,
+			           fitted ? Value::DOUBLE(fit.aic) : null_double, fit.aicc ? Value::DOUBLE(*fit.aicc) : null_double,
+			           fitted ? Value::DOUBLE(fit.bic) : null_double, fit.aicc ? Value::DOUBLE(delta) : null_double,
+			           fit.aicc ? Value::DOUBLE(std::exp(-delta / 2) / weight_sum) : null_double,
+			           fit.note.empty() ? Value(LogicalType::VARCHAR) : Value(fit.note)}));
 		}
 		return Value::LIST(type, std::move(rows));
 	}
@@ -1400,16 +1488,17 @@ void RegisterFits(ExtensionLoader &loader) {
 	const auto result_type = LogicalType::LIST(FitsResultType());
 	AggregateFunctionSet set(Identifier("dist_fits"));
 	const string description =
-	    "Fits several distributions to x by maximum likelihood and ranks them by AIC. Returns a LIST with one STRUCT "
-	    "per candidate that fits x, best first: the distribution, its fitted parameters as a MAP, the "
-	    "log_likelihood, aic and bic of the fit, delta_aic (the difference from the best AIC) and aic_weight (the "
-	    "Akaike weight, the relative likelihood of the candidate among those that fit). Candidates whose support "
-	    "does not cover x, or that cannot fit it, are left out; NULL is returned when none fits. Without candidates, "
-	    "the continuous fits " +
+	    "Fits several distributions to x by maximum likelihood and ranks them by AICc, the AIC corrected for small "
+	    "samples. Returns a LIST with one STRUCT per candidate, best first: the distribution, its fitted parameters "
+	    "as a MAP, the log_likelihood, aic, aicc and bic of the fit, delta_aicc (the difference from the best AICc), "
+	    "aicc_weight (the Akaike weight, the relative likelihood of the candidate among those ranked) and a note. "
+	    "Candidates that cannot be ranked, because x is outside their support, there are too few values or the fit "
+	    "fails, come last with the reason in note. Without candidates, the continuous fits " +
 	    CandidateNames(false, true) +
-	    " are tried. candidates names the fits to compare, either all continuous (those and students_t) or all "
-	    "discrete (" +
-	    CandidateNames(true) + "). The whole sample is held in memory.";
+	    " are tried. candidates names the fits to compare, either all continuous (those and " +
+	    CandidateNames(false, false) + ") or all discrete (" + CandidateNames(true, false) +
+	    "). The uniform and Pareto are not tried by default because their fitted bounds are the sample extremes, "
+	    "which makes their AIC favor them. The whole sample of each group is held in memory.";
 	vector<vector<std::pair<string, LogicalType>>> signatures {
 	    {{"x", LogicalType::DOUBLE}},
 	    {{"x", LogicalType::DOUBLE}, {"candidates", LogicalType::LIST(LogicalType::VARCHAR)}}};
@@ -1422,6 +1511,8 @@ void RegisterFits(ExtensionLoader &loader) {
 		    Identifier("dist_fits"), {}, result_type, AggregateFunction::StateSize<FitsAggregate::State>,
 		    AggregateFunction::StateInitialize<FitsAggregate::State, FitsAggregate>, FitsAggregate::Update,
 		    FitsAggregate::Combine, FitsAggregate::Finalize, nullptr, FitsBind, FitsAggregate::Destroy);
+		function.SetSerializeCallback(FitsSerialize);
+		function.SetDeserializeCallback(FitsDeserialize);
 		FunctionDescription desc;
 		desc.description = description;
 		desc.examples.push_back(examples[s]);
