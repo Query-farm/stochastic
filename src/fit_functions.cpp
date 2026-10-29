@@ -1148,6 +1148,298 @@ struct NegativeBinomialFit : CollectedFit<NegativeBinomialFit> {
 	}
 };
 
+//===--------------------------------------------------------------------===//
+// dist_fits(x [, candidates]): runs several fits over one sample and ranks them by AIC. The sample is collected
+// once and replayed through each candidate's fit operation at Finalize. A candidate that cannot fit the sample
+// (values outside its support, too few values, a fit that does not converge) is left out of the result.
+//===--------------------------------------------------------------------===//
+
+struct FitSummary {
+	const char *distribution;
+	vector<std::pair<const char *, double>> parameters;
+	double log_likelihood;
+	double aic;
+	double bic;
+};
+
+template <class OP>
+std::optional<FitSummary> RunFit(const vector<double> &xs) {
+	using Fit = FitAggregate<OP>;
+	typename OP::State state {};
+	struct DestroyGuard {
+		typename OP::State &state;
+		~DestroyGuard() {
+			OP::Destroy(state);
+		}
+	} guard {state};
+	try {
+		for (auto x : xs) {
+			OP::Update(state, x);
+		}
+		auto result = Fit::Finalize(state);
+		if (!result) {
+			return std::nullopt;
+		}
+		FitSummary summary {OP::name,
+		                    {},
+		                    (*result)[Fit::param_count],
+		                    (*result)[Fit::param_count + 1],
+		                    (*result)[Fit::param_count + 2]};
+		for (std::size_t i = 0; i < Fit::param_count; i++) {
+			summary.parameters.emplace_back(OP::param_names[i], (*result)[i]);
+		}
+		return summary;
+	} catch (InvalidInputException &) {
+		return std::nullopt;
+	} catch (MathError &) {
+		return std::nullopt;
+	} catch (Exception &) {
+		throw;
+	} catch (std::exception &) {
+		return std::nullopt;
+	}
+}
+
+struct FitCandidate {
+	const char *name;
+	bool discrete;
+	//! Tried when no candidates are given
+	bool by_default;
+	std::optional<FitSummary> (*run)(const vector<double> &xs);
+};
+
+//! Every fit that takes only x. The standard Student's t has no location or scale, so it is only tried when named.
+const FitCandidate FIT_CANDIDATES[] = {
+    {NormalFit::name, false, true, RunFit<NormalFit>},
+    {LognormalFit::name, false, true, RunFit<LognormalFit>},
+    {ExponentialFit::name, false, true, RunFit<ExponentialFit>},
+    {RayleighFit::name, false, true, RunFit<RayleighFit>},
+    {UniformRealFit::name, false, true, RunFit<UniformRealFit>},
+    {ParetoFit::name, false, true, RunFit<ParetoFit>},
+    {GammaFit::name, false, true, RunFit<GammaFit>},
+    {InverseGammaFit::name, false, true, RunFit<InverseGammaFit>},
+    {ChiSquaredFit::name, false, true, RunFit<ChiSquaredFit>},
+    {InverseGaussianFit::name, false, true, RunFit<InverseGaussianFit>},
+    {BetaFit::name, false, true, RunFit<BetaFit>},
+    {LaplaceFit::name, false, true, RunFit<LaplaceFit>},
+    {LogisticFit::name, false, true, RunFit<LogisticFit>},
+    {CauchyFit::name, false, true, RunFit<CauchyFit>},
+    {ExtremeValueFit::name, false, true, RunFit<ExtremeValueFit>},
+    {WeibullFit::name, false, true, RunFit<WeibullFit>},
+    {StudentsTFit::name, false, false, RunFit<StudentsTFit>},
+    {PoissonFit::name, true, false, RunFit<PoissonFit>},
+    {BernoulliFit::name, true, false, RunFit<BernoulliFit>},
+    {GeometricFit::name, true, false, RunFit<GeometricFit>},
+    {NegativeBinomialFit::name, true, false, RunFit<NegativeBinomialFit>},
+};
+
+string CandidateNames(bool discrete, bool only_default = false) {
+	string names;
+	for (auto &candidate : FIT_CANDIDATES) {
+		if (candidate.discrete == discrete && (candidate.by_default || !only_default)) {
+			names += names.empty() ? candidate.name : string(", ") + candidate.name;
+		}
+	}
+	return names;
+}
+
+struct FitsBindData : public FunctionData {
+	explicit FitsBindData(vector<idx_t> candidates_p) : candidates(std::move(candidates_p)) {
+	}
+	//! Indexes into FIT_CANDIDATES
+	vector<idx_t> candidates;
+
+	unique_ptr<FunctionData> Copy() const override {
+		return make_uniq<FitsBindData>(candidates);
+	}
+	bool Equals(const FunctionData &other) const override {
+		return candidates == other.Cast<FitsBindData>().candidates;
+	}
+};
+
+unique_ptr<FunctionData> FitsBind(BindAggregateFunctionInput &input) {
+	vector<idx_t> candidates;
+	if (input.GetArguments().size() == 1) {
+		for (idx_t i = 0; i < std::size(FIT_CANDIDATES); i++) {
+			if (FIT_CANDIDATES[i].by_default) {
+				candidates.push_back(i);
+			}
+		}
+		return make_uniq<FitsBindData>(std::move(candidates));
+	}
+	auto list = input.GetNonNullConstant(1);
+	for (auto &value : ListValue::GetChildren(list)) {
+		if (value.IsNull()) {
+			throw InvalidInputException("dist_fits: candidates must not contain NULL");
+		}
+		const auto name = StringValue::Get(value);
+		idx_t index = 0;
+		while (index < std::size(FIT_CANDIDATES) && name != FIT_CANDIDATES[index].name) {
+			index++;
+		}
+		if (index == std::size(FIT_CANDIDATES)) {
+			throw InvalidInputException("dist_fits: unknown candidate '%s'; the continuous candidates are %s and the "
+			                            "discrete candidates are %s",
+			                            name, CandidateNames(false), CandidateNames(true));
+		}
+		if (std::find(candidates.begin(), candidates.end(), index) != candidates.end()) {
+			throw InvalidInputException("dist_fits: candidate '%s' is listed more than once", name);
+		}
+		if (!candidates.empty() && FIT_CANDIDATES[candidates[0]].discrete != FIT_CANDIDATES[index].discrete) {
+			throw InvalidInputException("dist_fits: cannot compare discrete and continuous candidates ('%s' and "
+			                            "'%s'), because their likelihoods are not comparable",
+			                            FIT_CANDIDATES[candidates[0]].name, name);
+		}
+		candidates.push_back(index);
+	}
+	if (candidates.empty()) {
+		throw InvalidInputException("dist_fits: candidates must not be empty");
+	}
+	return make_uniq<FitsBindData>(std::move(candidates));
+}
+
+LogicalType FitsResultType() {
+	child_list_t<LogicalType> children {{"distribution", LogicalType::VARCHAR},
+	                                    {"parameters", LogicalType::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE)},
+	                                    {"log_likelihood", LogicalType::DOUBLE},
+	                                    {"aic", LogicalType::DOUBLE},
+	                                    {"bic", LogicalType::DOUBLE},
+	                                    {"delta_aic", LogicalType::DOUBLE},
+	                                    {"aic_weight", LogicalType::DOUBLE}};
+	return LogicalType::STRUCT(std::move(children));
+}
+
+struct FitsAggregate {
+	static constexpr const char *name = "dist_fits";
+	struct State {
+		CollectedValues values;
+	};
+
+	static void Update(Vector inputs[], AggregateInputData &, idx_t, Vector &state_vector, idx_t count) {
+		auto values = inputs[0].Values<double>();
+		auto states = state_vector.Values<State *>();
+		for (idx_t i = 0; i < count; i++) {
+			if (!values[i].IsValid()) {
+				continue;
+			}
+			const double x = values[i].GetValue();
+			RequireFiniteSample(name, x);
+			states[i].GetValue()->values.Add(x);
+		}
+	}
+
+	static void Combine(Vector &source, Vector &target, AggregateInputData &, idx_t count) {
+		auto sources = source.Values<State *>();
+		auto targets = target.Values<State *>();
+		for (idx_t i = 0; i < count; i++) {
+			targets[i].GetValue()->values.Merge(sources[i].GetValue()->values);
+		}
+	}
+
+	//! The fits of the sample ordered by AIC, or NULL when no candidate fits it.
+	static Value Rank(const vector<double> &xs, const vector<idx_t> &candidates) {
+		vector<FitSummary> fits;
+		for (auto index : candidates) {
+			auto fit = FIT_CANDIDATES[index].run(xs);
+			if (fit) {
+				fits.push_back(std::move(*fit));
+			}
+		}
+		const auto type = FitsResultType();
+		if (fits.empty()) {
+			return Value(LogicalType::LIST(type));
+		}
+		std::stable_sort(fits.begin(), fits.end(),
+		                 [](const FitSummary &a, const FitSummary &b) { return a.aic < b.aic; });
+		// Akaike weights: exp(-delta / 2), normalized over the candidates that fit
+		double weight_sum = 0;
+		for (auto &fit : fits) {
+			weight_sum += std::exp(-(fit.aic - fits[0].aic) / 2);
+		}
+		vector<Value> rows;
+		for (auto &fit : fits) {
+			vector<Value> keys;
+			vector<Value> parameters;
+			for (auto &parameter : fit.parameters) {
+				keys.emplace_back(parameter.first);
+				parameters.emplace_back(parameter.second);
+			}
+			const double delta = fit.aic - fits[0].aic;
+			rows.push_back(Value::STRUCT(
+			    type, {Value(fit.distribution),
+			           Value::MAP(LogicalType::VARCHAR, LogicalType::DOUBLE, std::move(keys), std::move(parameters)),
+			           Value::DOUBLE(fit.log_likelihood), Value::DOUBLE(fit.aic), Value::DOUBLE(fit.bic),
+			           Value::DOUBLE(delta), Value::DOUBLE(std::exp(-delta / 2) / weight_sum)}));
+		}
+		return Value::LIST(type, std::move(rows));
+	}
+
+	static void Finalize(Vector &state_vector, AggregateFinalizeInputData &input, Vector &result, idx_t count,
+	                     idx_t offset) {
+		auto &bind_data = input.bind_data->Cast<FitsBindData>();
+		auto states = state_vector.Values<State *>();
+		for (idx_t i = 0; i < count; i++) {
+			auto &values = states[i].GetValue()->values;
+			if (values.size() == 0) {
+				result.SetValue(offset + i, Value(result.GetType()));
+				continue;
+			}
+			result.SetValue(offset + i, Rank(*values.values, bind_data.candidates));
+		}
+	}
+
+	static void Destroy(Vector &state_vector, AggregateInputData &, idx_t count) {
+		auto states = state_vector.Values<State *>();
+		for (idx_t i = 0; i < count; i++) {
+			states[i].GetValue()->values.Destroy();
+		}
+	}
+};
+
+void RegisterFits(ExtensionLoader &loader) {
+	const auto result_type = LogicalType::LIST(FitsResultType());
+	AggregateFunctionSet set(Identifier("dist_fits"));
+	const string description =
+	    "Fits several distributions to x by maximum likelihood and ranks them by AIC. Returns a LIST with one STRUCT "
+	    "per candidate that fits x, best first: the distribution, its fitted parameters as a MAP, the "
+	    "log_likelihood, aic and bic of the fit, delta_aic (the difference from the best AIC) and aic_weight (the "
+	    "Akaike weight, the relative likelihood of the candidate among those that fit). Candidates whose support "
+	    "does not cover x, or that cannot fit it, are left out; NULL is returned when none fits. Without candidates, "
+	    "the continuous fits " +
+	    CandidateNames(false, true) +
+	    " are tried. candidates names the fits to compare, either all continuous (those and students_t) or all "
+	    "discrete (" +
+	    CandidateNames(true) + "). The whole sample is held in memory.";
+	vector<vector<std::pair<string, LogicalType>>> signatures {
+	    {{"x", LogicalType::DOUBLE}},
+	    {{"x", LogicalType::DOUBLE}, {"candidates", LogicalType::LIST(LogicalType::VARCHAR)}}};
+	vector<string> examples {
+	    "SELECT unnest(dist_fits(x), recursive := true) FROM t",
+	    "SELECT unnest(dist_fits(x, ['gamma', 'lognormal', 'weibull']), recursive := true) FROM t"};
+	vector<FunctionDescription> descriptions;
+	for (idx_t s = 0; s < signatures.size(); s++) {
+		AggregateFunction function(
+		    Identifier("dist_fits"), {}, result_type, AggregateFunction::StateSize<FitsAggregate::State>,
+		    AggregateFunction::StateInitialize<FitsAggregate::State, FitsAggregate>, FitsAggregate::Update,
+		    FitsAggregate::Combine, FitsAggregate::Finalize, nullptr, FitsBind, FitsAggregate::Destroy);
+		FunctionDescription desc;
+		desc.description = description;
+		desc.examples.push_back(examples[s]);
+		desc.categories = {"statistics", "fit"};
+		for (auto &param : signatures[s]) {
+			function.GetSignature().AddParameter(Identifier(param.first), param.second);
+			desc.parameter_types.push_back(param.second);
+			desc.parameter_names.push_back(param.first);
+		}
+		function.SetFallible();
+		set.AddFunction(function);
+		descriptions.push_back(std::move(desc));
+	}
+	CreateAggregateFunctionInfo info(std::move(set));
+	info.descriptions = std::move(descriptions);
+	loader.RegisterFunction(info);
+}
+
 template <class OP>
 void RegisterFit(ExtensionLoader &loader, const string &display_name, const string &method,
                  const string &notes = string(), const vector<std::pair<string, LogicalType>> &extra_params = {},
@@ -1208,6 +1500,7 @@ void Load_fit_functions(ExtensionLoader &loader) {
 	                                 "cast it to BIGINT to use it. Returns NULL when the variance does not exceed the "
 	                                 "mean. " +
 	                                     whole_sample);
+	RegisterFits(loader);
 }
 
 } // namespace duckdb

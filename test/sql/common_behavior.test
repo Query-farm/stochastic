@@ -235,9 +235,16 @@ normal: stddev must be > 0, got -1
 
 query I
 SELECT count(*) FROM duckdb_functions()
-WHERE function_name LIKE 'dist\_%' ESCAPE '\' AND (len(categories) <> 3 OR categories[1] <> 'statistics');
+WHERE function_name LIKE 'dist\_%' ESCAPE '\' AND function_name <> 'dist_fits'
+  AND (len(categories) <> 3 OR categories[1] <> 'statistics');
 ----
 0
+
+# dist_fits compares several distributions, so like the t-tests it has no distribution category
+query T
+SELECT DISTINCT categories FROM duckdb_functions() WHERE function_name = 'dist_fits';
+----
+[statistics, fit]
 
 query II
 SELECT function_name, categories FROM duckdb_functions()

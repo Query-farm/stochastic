@@ -111,6 +111,15 @@ def values_source(xs):
     return f"(VALUES {rows}) t(x)"
 
 
+# dist_fits candidate lists: each fit alone, all continuous and all discrete fits
+CONTINUOUS_FITS = ["normal", "lognormal", "exponential", "rayleigh", "uniform_real", "pareto", "gamma",
+                   "inverse_gamma", "chi_squared", "inverse_gaussian", "beta", "laplace", "logistic", "cauchy",
+                   "extreme_value", "weibull", "students_t"]
+DISCRETE_FITS = ["poisson", "bernoulli", "geometric", "negative_binomial"]
+FITS_CANDIDATES = ([f"['{f}']" for f in CONTINUOUS_FITS + DISCRETE_FITS] +
+                   ["[" + ", ".join(f"'{f}'" for f in fits) + "]" for fits in (CONTINUOUS_FITS, DISCRETE_FITS)])
+
+
 def aggregate_queries(fn):
     name, types = fn["function_name"], fn["parameter_types"]
     queries = []
@@ -126,6 +135,12 @@ def aggregate_queries(fn):
                 vals = ["(" + typed(x, "DOUBLE") + f", {0 if split == 'all_zero' else i % 2})" for i, x in enumerate(xs)]
                 source = f"(VALUES {', '.join(vals)}) t(x, g)" if vals else "(SELECT 1.0 AS x, 0 AS g WHERE false) t"
                 queries.append(f"SELECT {name}(x, g)::VARCHAR FROM {source}")
+            continue
+        if name == "dist_fits":
+            source = (values_source(xs) if rows
+                      else "(SELECT 1.0::DOUBLE AS x WHERE false) t")
+            for candidates in FITS_CANDIDATES:
+                queries.append(f"SELECT {name}(x, {candidates})::VARCHAR FROM {source}")
             continue
         if name == "chi_squared_test":
             for expected in ("1.0", "0.0", "-1.0", "'inf'", "1e-300", "NULL"):
