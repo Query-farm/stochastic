@@ -17,15 +17,18 @@ FROM (SELECT dist_fits(hours) f FROM repair_hours);
 ----
 [rayleigh, inverse_gaussian, lognormal, gamma, weibull, inverse_gamma, extreme_value, chi_squared, exponential, logistic, normal, laplace, cauchy, beta]	values must be between 0 and 1 (exclusive), got 1.2
 
-# Each ranked row is the fit of the distribution's own fit function, and aicc = aic + 2k(k + 1) / (n - k - 1)
+# Each ranked row is the fit of the distribution's own fit function (up to rounding, since sums depend on the order
+# of the values), and aicc = aic + 2k(k + 1) / (n - k - 1)
 query IIIII
 WITH ranked AS (SELECT unnest(dist_fits(hours), recursive := true) FROM repair_hours WHERE true),
 own AS (SELECT dist_gamma_fit(hours) g, dist_weibull_fit(hours) w, dist_lognormal_fit(hours) l FROM repair_hours)
 SELECT
   bool_and(CASE distribution
-    WHEN 'gamma' THEN parameters['shape'] = g.shape AND parameters['scale'] = g.scale AND aic = g.aic AND bic = g.bic
+    WHEN 'gamma' THEN abs(parameters['shape'] / g.shape - 1) < 1e-12 AND abs(parameters['scale'] / g.scale - 1) < 1e-12
+                      AND abs(aic / g.aic - 1) < 1e-12 AND abs(bic / g.bic - 1) < 1e-12
     WHEN 'weibull' THEN abs(parameters['shape'] / w.shape - 1) < 1e-12 AND abs(log_likelihood / w.log_likelihood - 1) < 1e-12
-    WHEN 'lognormal' THEN parameters['mean'] = l.mean AND parameters['stddev'] = l.stddev AND aic = l.aic
+    WHEN 'lognormal' THEN abs(parameters['mean'] / l.mean - 1) < 1e-12 AND abs(parameters['stddev'] / l.stddev - 1) < 1e-12
+                          AND abs(aic / l.aic - 1) < 1e-12
     ELSE true END),
   bool_and(note IS NOT NULL OR abs(aicc - (aic + 2 * cardinality(parameters) * (cardinality(parameters) + 1) / (15 - cardinality(parameters) - 1))) < 1e-12),
   count(aicc),
@@ -77,7 +80,7 @@ FROM (VALUES (-1.5), (0.5), (2.0), (0.1), (-0.3)) t(x);
 
 # AICc needs more than k + 1 values; the fit is still reported
 query TIRT
-SELECT f.distribution, f.aic = CASE f.distribution WHEN 'gamma' THEN g.aic ELSE e.aic END, round(f.aic, 4), f.note
+SELECT f.distribution, abs(f.aic / CASE f.distribution WHEN 'gamma' THEN g.aic ELSE e.aic END - 1) < 1e-12, round(f.aic, 4), f.note
 FROM (SELECT unnest(dist_fits(x, ['gamma', 'exponential'])) f, dist_gamma_fit(x) g, dist_exponential_fit(x) e
       FROM (VALUES (1.0), (2.0), (4.0)) t(x));
 ----
@@ -100,12 +103,13 @@ true	false
 
 # Discrete candidates
 query TTT
-SELECT f.distribution, f.parameters, regexp_replace(f.note, ', got .*', '')
+SELECT f.distribution, map_from_entries(list_transform(map_entries(f.parameters), lambda e: {'k': e.key, 'v': round(e.value, 10)})),
+       regexp_replace(f.note, ', got .*', '')
 FROM (SELECT unnest(dist_fits(x, ['poisson', 'negative_binomial', 'geometric', 'bernoulli'])) f FROM (VALUES (1), (3), (0), (7), (2), (2)) t(x));
 ----
-geometric	{prob=0.2857142857142857}	NULL
+geometric	{prob=0.2857142857}	NULL
 poisson	{rate=2.5}	NULL
-negative_binomial	{successes=3.0, prob=0.5454545454545454}	NULL
+negative_binomial	{successes=3.0, prob=0.5454545455}	NULL
 bernoulli	NULL	values must be 0 or 1
 
 query T
@@ -124,11 +128,15 @@ SELECT list_transform(dist_fits(x, ['gamma', 'weibull']), lambda f: f.note IS NO
 ----
 [true, true]
 
-query I
-SELECT (SELECT dist_fits(x) FROM (VALUES (1.0), (NULL), (2.0), (4.0), (3.5), (0.5)) t(x)) =
-       (SELECT dist_fits(x) FROM (VALUES (1.0), (2.0), (4.0), (3.5), (0.5)) t(x));
+query II
+WITH a AS (SELECT dist_fits(x) f FROM (VALUES (1.0), (NULL), (2.0), (4.0), (3.5), (0.5)) t(x)),
+     b AS (SELECT dist_fits(x) f FROM (VALUES (1.0), (2.0), (4.0), (3.5), (0.5)) t(x))
+SELECT list_transform(a.f, lambda r: r.distribution) = list_transform(b.f, lambda r: r.distribution),
+       list_max(list_transform(list_filter(list_zip(a.f, b.f), lambda p: p[1].aicc IS NOT NULL),
+                               lambda p: abs(p[1].aicc / p[2].aicc - 1))) < 1e-12
+FROM a, b;
 ----
-true
+true	true
 
 # Groups, and the same ranking whatever the order of the values
 query II
