@@ -64,6 +64,7 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 - `CheckSampleRange` rejects integer sampler parameters whose samples could exceed 2^53.
 - `DiscreteQuantile` finds discrete quantiles (and medians) by galloping and bisecting on the CDF, since Boost's integer search does not finish for large quantiles; quantiles above 2^53 are rejected.
 - A spec can override `DistributionParams`, `Pdf`, `LogPdf`, `LogCdf`, `LogCdfComplement`, `Hazard`, `Quantile`, `QuantileComplement`, `Mode` or `Median` from `DistributionSpecBase` where Boost is wrong or does not terminate (Kolmogorov-Smirnov, logistic, non-central chi-squared and F).
+- Outside the support, and at an infinite x, the density, cumulative, hazard and cumulative hazard functions return their limits (pdf 0, CDF 0 below and 1 above, ...) without calling Boost (`LocateInSupport`); the hazard above the support is an error. Discrete distributions have PMF 0 at non-integers and evaluate cumulative functions at floor(x). Quantiles at p = 0 and 1 are the ends of the support (`BoundaryQuantile`), and `support`/`range` report Boost's largest-DOUBLE ends as infinity and its smallest-positive-DOUBLE lower ends as 0.
 - Results that are NaN are reported as errors, CDFs and PMFs are checked to lie in [0, 1], and Boost exceptions raised outside our policy are turned into `InvalidInputException` naming the distribution.
 - The non-central chi-squared, F and beta accept noncentrality up to `MAX_NONCENTRALITY` (1e8) and the non-central t up to 1000 in absolute value; beyond that Boost's series take too long or diverge.
 
@@ -82,7 +83,7 @@ Both `boost_type` and `sampler_type` are constructed from the parameters in decl
 1. Create `src/distribution_<name>.cpp` with a spec struct and `Load_<name>_distribution()` following an existing file (sources are picked up by the `src/distribution_*.cpp` glob in `CMakeLists.txt`)
 2. If the standard library has no sampler, add one to `src/include/samplers.hpp` or use `InverseTransformSampler<boost_type>`
 3. Add `X(<name>)` to `STOCHASTIC_DISTRIBUTIONS` in `src/stochastic_extension.cpp`
-4. Create `test/sql/<name>.test` with reference values from an independent implementation (e.g. SciPy) and sample moment checks
+4. Add the distribution to `VALIDATIONS` in `scripts/generate_tests.py` and regenerate (see Testing), then create `test/sql/<name>.test` with reference values from an independent implementation (e.g. SciPy) and sample moment checks
 5. Parameter names must not be `x`, `p` or `n` (they collide with call arguments; see `test/sql/parameter_names.test`)
 6. Run the fuzzer described in `test/fuzz/README.md` over the new functions
 
@@ -93,6 +94,8 @@ Tests use DuckDB's `.test` format (see `test/sql/normal.test` for examples). Tes
 - Use `require stochastic` to ensure extension is loaded
 - Support `statement error`, `query R` (float), `query I` (integer), `query T` (text)
 - Can test multiple columns with `query RR`, `query RRR`, etc.
+
+`scripts/generate_tests.py` generates the reference-value tests of the original 21 distributions (`test/sql/<name>.test`, values from SciPy) and `test/sql/validation.test` (parameter validation, NaN/inf parameters, boundary quantiles and infinite evaluation points for every univariate distribution). Change the generator rather than those files, and check that regenerating leaves them unchanged: `python3 -m venv /tmp/venv && /tmp/venv/bin/pip install scipy && /tmp/venv/bin/python scripts/generate_tests.py && git status test/sql`. The other test files are written by hand.
 
 `make test` runs DuckDB's `scripts/ci/run_tests.py`, which needs Python 3.10 or newer. `./build/release/test/unittest "test/sql/*"` runs the same tests directly. In the v2.0 shell the statically linked extension is not loaded automatically; use `build/release/duckdb -unsigned -c "LOAD 'build/release/extension/stochastic/stochastic.duckdb_extension'; ..."`.
 

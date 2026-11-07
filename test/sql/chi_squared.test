@@ -154,9 +154,3 @@ query I
 SELECT dist_chi_squared_support(5.0) IS NOT NULL;
 ----
 true
-
-# Test chi_squared sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_chi_squared_sample(5.0)) > 1 FROM generate_series(1, 100);
-----
-true

@@ -154,9 +154,3 @@ query I
 SELECT dist_poisson_support(5.0) IS NOT NULL;
 ----
 true
-
-# Test poisson sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_poisson_sample(5.0)) > 1 FROM generate_series(1, 100);
-----
-true

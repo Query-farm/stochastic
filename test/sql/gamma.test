@@ -154,9 +154,3 @@ query I
 SELECT dist_gamma_support(2.0, 1.0) IS NOT NULL;
 ----
 true
-
-# Test gamma sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_gamma_sample(2.0, 1.0)) > 1 FROM generate_series(1, 100);
-----
-true

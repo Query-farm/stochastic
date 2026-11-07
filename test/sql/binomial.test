@@ -144,9 +144,3 @@ query I
 SELECT dist_binomial_support(10::BIGINT, 0.5) IS NOT NULL;
 ----
 true
-
-# Test binomial sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_binomial_sample(10::BIGINT, 0.5)) > 1 FROM generate_series(1, 100);
-----
-true

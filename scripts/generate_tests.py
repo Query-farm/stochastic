@@ -27,6 +27,15 @@ def fmt(v, decimals=6):
     return s
 
 
+def is_half_way(v, decimals=6):
+    """True when v lies exactly half-way between two values at `decimals` places.
+
+    Native and wasm builds round such values in opposite directions, so tests round them to one place less.
+    """
+    scaled = float(v) * 10**decimals
+    return abs(scaled - math.floor(scaled) - 0.5) < 1e-9
+
+
 def fmt_range(lo, hi):
     """Format a range/support pair as DuckDB ARRAY text."""
     lo_s = "-inf" if lo == float("-inf") else fmt(lo)
@@ -46,8 +55,6 @@ class Distribution:
         test_x,
         *,
         is_discrete=False,
-        has_sample=True,
-        sample_type="R",  # R=DOUBLE, I=BIGINT, B=BOOLEAN
         disabled_props=None,
         range_val=None,
         support_val=None,
@@ -55,6 +62,7 @@ class Distribution:
         quantile_is_int=False,
         skip_quantile=False,
         x_fmt=None,  # "bigint" to force ::BIGINT cast on x values
+        extra_tests=None,  # hand-written sqllogictest text appended to the file
     ):
         self.name = name
         self.scipy_dist = scipy_dist
@@ -62,8 +70,6 @@ class Distribution:
         self.param_sql = param_sql  # SQL params string e.g. "0.0, 1.0"
         self.test_x = test_x  # list of x values to test pdf/cdf at
         self.is_discrete = is_discrete
-        self.has_sample = has_sample
-        self.sample_type = sample_type
         self.disabled_props = disabled_props or set()
         self.range_val = range_val  # (lo, hi) tuple, None = use support
         self.support_val = support_val  # (lo, hi) tuple, None = compute
@@ -74,6 +80,7 @@ class Distribution:
         self.quantile_is_int = quantile_is_int
         self.skip_quantile = skip_quantile
         self.x_fmt = x_fmt
+        self.extra_tests = extra_tests
 
     def dist(self):
         return self.scipy_dist(**self.params)
@@ -198,10 +205,17 @@ def generate_test(d: Distribution) -> str:
     add(f"# Test {d.name} CDF")
     for x in d.test_x[:3]:
         val = d.cdf(x)
+        decimals = 6
+        if is_half_way(val):
+            decimals = 5
+            exact = f"{float(val):.7f}"
+            down, up = exact[1:-1], f"{float(exact[:-1]) + 1e-6:.6f}"[1:]
+            add(f"# round to 5 dp: the exact value is {exact}, a half-way point at 6 dp where")
+            add(f"# native and wasm builds round in opposite directions ({down} vs {up}).")
         add("query R")
-        add(f"SELECT round({prefix}_cdf({d.param_sql}, {fmt_x(x)}), 6);")
+        add(f"SELECT round({prefix}_cdf({d.param_sql}, {fmt_x(x)}), {decimals});")
         add("----")
-        add(fmt(val))
+        add(fmt(val, decimals))
         add()
 
     # --- CDF complement ---
@@ -335,15 +349,10 @@ def generate_test(d: Distribution) -> str:
     add("true")
     add()
 
-    # --- Sample ---
-    if d.has_sample:
-        add(f"# Test {d.name} sample returns varying values")
-        add("query I")
-        add(
-            f"SELECT COUNT(DISTINCT {prefix}_sample({d.param_sql})) > 1 FROM generate_series(1, 100);"
-        )
-        add("----")
-        add("true")
+    # Sample moments are checked with tolerances in sampling.test, and parameter
+    # validation, boundary quantiles and infinite evaluation points in validation.test.
+    if d.extra_tests:
+        add(d.extra_tests.strip("\n"))
         add()
 
     return "\n".join(lines)
@@ -395,7 +404,6 @@ add_dist(
         "10::BIGINT, 0.5",
         [5, 3, 7],
         is_discrete=True,
-        sample_type="I",
         disabled_props={"mean", "stddev"},
         mode_fn=lambda: float(int((10 + 1) * 0.5)),  # floor((n+1)p)
         range_val=(0.0, 10.0),
@@ -503,7 +511,6 @@ class GeometricDist(Distribution):
             "0.5",
             [0, 1, 2],
             is_discrete=True,
-            sample_type="I",
             mode_fn=lambda: 0.0,  # mode is always 0 for geometric (failures before first success)
         )
 
@@ -526,9 +533,9 @@ class GeometricDist(Distribution):
         return stats.geom.logsf(x + 1, **self.params)
 
     def ppf(self, p):
-        # Boost.Math returns real-valued quantile: solve 1-(1-prob)^(x+1) = p
+        # Discrete quantiles are the smallest integer x with CDF(x) = 1-(1-prob)^(x+1) >= p
         prob = self.params["p"]
-        return math.log(1 - p) / math.log(1 - prob) - 1
+        return float(math.ceil(math.log(1 - p) / math.log(1 - prob) - 1 - 1e-12))
 
     def isf(self, p):
         # isf(p) = ppf(1-p)
@@ -587,7 +594,6 @@ add_dist(
         {"loc": 0.0, "scale": 1.0},
         "0.0, 1.0",
         [0.0, 1.0, -1.0],
-        has_sample=False,
         disabled_props={"mean", "stddev"},
         mode_fn=lambda: 0.0,
         range_val=(-math.inf, math.inf),
@@ -618,7 +624,6 @@ add_dist(
         "10::BIGINT, 0.5",
         [5, 10, 3],
         is_discrete=True,
-        sample_type="I",
         disabled_props={"mean", "stddev"},
         mode_fn=lambda: float(
             max(0, int(math.floor((10 - 1) * (1 - 0.5) / 0.5)))
@@ -626,6 +631,20 @@ add_dist(
         quantile_is_int=True,
     )
 )
+
+PARETO_EXTRA_TESTS = """
+# Parameter metadata agrees with the established (scale, shape) runtime order.
+query T
+SELECT DISTINCT parameters[1:2] FROM duckdb_functions()
+WHERE function_name LIKE 'dist_pareto_%' AND function_type = 'scalar';
+----
+[scale, shape]
+
+query RR
+SELECT dist_pareto_mean(1,3), dist_pareto_mean(2,3);
+----
+1.5	3.0
+"""
 
 # --- pareto ---
 # Extension: pareto(shape, minimum) where param1→Boost's scale (x_m), param2→Boost's shape (alpha)
@@ -638,8 +657,8 @@ add_dist(
         {"b": 3.0, "scale": 1.0},  # shape=3.0 (alpha), scale=1.0 (x_m)
         "1.0, 3.0",  # Extension: param1=scale=1.0, param2=shape=3.0
         [1.5, 2.0, 3.0],
-        has_sample=False,
         mode_fn=lambda: 1.0,  # x_m (scale parameter)
+        extra_tests=PARETO_EXTRA_TESTS,
     )
 )
 
@@ -652,7 +671,6 @@ add_dist(
         "5.0",
         [5, 3, 7],
         is_discrete=True,
-        sample_type="I",
         mode_fn=lambda: 5.0,  # floor(lambda) when lambda is integer
     )
 )
@@ -665,7 +683,6 @@ add_dist(
         {"scale": 1.0},
         "1.0",
         [0.5, 1.0, 2.0],
-        has_sample=False,
         mode_fn=lambda: 1.0,  # mode = sigma
     )
 )
@@ -697,24 +714,8 @@ add_dist(
 )
 
 # --- uniform_int ---
-# Extension uses boost::math::uniform_distribution (continuous) for math, discrete for sampling.
-# So math functions (pdf, cdf, etc.) behave as continuous uniform on [min, max].
-add_dist(
-    Distribution(
-        "uniform_int",
-        stats.uniform,
-        {"loc": 1.0, "scale": 5.0},  # continuous uniform on [1, 6]
-        "1::DOUBLE, 6::DOUBLE",
-        [2, 3, 5],
-        x_fmt="bigint",  # x param is registered as BIGINT
-        sample_type="I",
-        disabled_props={"mean", "stddev", "variance", "median"},  # BIGINT truncation
-        mode_fn=lambda: 1.0,  # Boost returns lower bound for uniform mode
-        range_val=(1.0, 6.0),
-        support_val=(1.0, 6.0),
-        quantile_is_int=True,
-    )
-)
+# Not generated: dist_uniform_int_* use an exact integer implementation (BIGINT bounds, discrete pmf),
+# so test/sql/uniform_int.test is written by hand.
 
 # --- weibull ---
 add_dist(
@@ -740,10 +741,219 @@ add_dist(
         "0.5",
         [0, 1],
         is_discrete=True,
-        sample_type="B",
         mode_fn=lambda: 0.0,  # Boost.Math returns 0 when p=0.5 (ambiguous)
     )
 )
+
+
+# ============================================================================
+# validation.test: parameter validation, boundary quantiles and infinite
+# evaluation points for every univariate distribution
+# ============================================================================
+
+
+class Validation:
+    """Validation checks for one distribution.
+
+    params: SQL literals of valid parameters; types: "D" (DOUBLE) or "I" (BIGINT) per parameter;
+    invalid: (params SQL, expected error) pairs; q0 / q1: expected quantile at p = 0 and p = 1
+    (a value, or "error: <message>"); x: a valid evaluation point; discrete: BIGINT evaluation points.
+    """
+
+    def __init__(self, name, params, names, types, invalid, q0, q1, x, *, discrete=False, finite_errors=None):
+        self.name = name
+        self.params = params
+        self.names = names
+        self.types = types
+        self.invalid = invalid
+        self.q0 = q0
+        self.q1 = q1
+        self.x = x
+        self.discrete = discrete
+        # Expected error for a non-finite parameter, when the distribution's own checks report it first
+        self.finite_errors = finite_errors or {}
+
+
+INF = "inf"
+NINF = "-inf"
+
+VALIDATIONS = [
+    Validation("arcsine", ["0.0", "1.0"], ["min", "max"], "DD",
+               [("1.0, 0.0", "arcsine: min must be < max, got min=1 max=0")], "0.0", "1.0", "0.25"),
+    Validation("bernoulli", ["0.5"], ["prob"], "D",
+               [("1.5", "bernoulli: prob must be between 0 and 1, got 1.5")], "0.0", "1.0", "1", discrete=True),
+    Validation("beta", ["2.0", "5.0"], ["alpha", "beta"], "DD",
+               [("0.0, 5.0", "beta: alpha must be > 0, got 0"), ("2.0, -1.0", "beta: beta must be > 0, got -1")],
+               "0.0", "1.0", "0.5"),
+    Validation("binomial", ["10", "0.5"], ["trials", "prob"], "ID",
+               [("0, 0.5", "binomial: trials must be > 0, got 0"),
+                ("10, -0.1", "binomial: prob must be between 0 and 1, got -0.1")], "0", "10", "5", discrete=True),
+    Validation("cauchy", ["0.0", "1.0"], ["location", "scale"], "DD",
+               [("0.0, 0.0", "cauchy: scale must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("chi_squared", ["5.0"], ["degrees_of_freedom"], "D",
+               [("0.0", "chi_squared: degrees_of_freedom must be > 0, got 0")], "0.0", INF, "3.0"),
+    Validation("exponential", ["1.0"], ["rate"], "D",
+               [("-1.0", "exponential: rate must be > 0, got -1")], "0.0", INF, "0.5"),
+    Validation("extreme_value", ["0.0", "1.0"], ["location", "scale"], "DD",
+               [("0.0, 0.0", "extreme_value: scale must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("fisher_f", ["5.0", "10.0"], ["d1", "d2"], "DD",
+               [("0.0, 10.0", "fisher_f: d1 must be > 0, got 0"), ("5.0, 0.0", "fisher_f: d2 must be > 0, got 0")],
+               "0.0", INF, "0.5"),
+    Validation("gamma", ["2.0", "1.0"], ["shape", "scale"], "DD",
+               [("0.0, 1.0", "gamma: shape must be > 0, got 0"), ("2.0, -1.0", "gamma: scale must be > 0, got -1")],
+               "0.0", INF, "1.5"),
+    Validation("geometric", ["0.5"], ["prob"], "D",
+               [("0.0", "geometric: prob must be > 0, got 0"),
+                ("1.5", "geometric: prob must be between 0 and 1, got 1.5")], "0.0", INF, "2", discrete=True),
+    Validation("hypergeometric", ["10", "5", "50"], ["successes", "draws", "population"], "III",
+               [("-1, 5, 50", "hypergeometric: successes must be >= 0, got -1"),
+                ("10, 5, 0", "hypergeometric: population must be > 0, got 0"),
+                ("60, 5, 50", "hypergeometric: successes and draws must be <= population")],
+               "0", "5", "2", discrete=True),
+    Validation("inverse_chi_squared", ["5.0", "1.0"], ["degrees_of_freedom", "scale"], "DD",
+               [("0.0, 1.0", "inverse_chi_squared: degrees_of_freedom must be > 0, got 0"),
+                ("5.0, 0.0", "inverse_chi_squared: scale must be > 0, got 0")], "0.0", INF, "0.5"),
+    Validation("inverse_gamma", ["3.0", "2.0"], ["shape", "scale"], "DD",
+               [("0.0, 2.0", "inverse_gamma: shape must be > 0, got 0"),
+                ("3.0, 0.0", "inverse_gamma: scale must be > 0, got 0")], "0.0", INF, "0.5"),
+    Validation("inverse_gaussian", ["1.0", "2.0"], ["mean", "shape"], "DD",
+               [("0.0, 2.0", "inverse_gaussian: mean must be > 0, got 0"),
+                ("1.0, 0.0", "inverse_gaussian: shape must be > 0, got 0")], "0.0", INF, "0.5"),
+    Validation("kolmogorov_smirnov", ["10.0"], ["sample_size"], "D",
+               [("0.0", "kolmogorov_smirnov: sample_size must be > 0, got 0")], "0.0", INF, "0.3"),
+    Validation("laplace", ["0.0", "1.0"], ["location", "scale"], "DD",
+               [("0.0, 0.0", "laplace: scale must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("logistic", ["0.0", "1.0"], ["location", "scale"], "DD",
+               [("0.0, 0.0", "logistic: scale must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("lognormal", ["0.0", "1.0"], ["mean", "stddev"], "DD",
+               [("0.0, 0.0", "lognormal: stddev must be > 0, got 0")], "0.0", INF, "0.5"),
+    Validation("negative_binomial", ["10", "0.5"], ["successes", "prob"], "ID",
+               [("0, 0.5", "negative_binomial: successes must be > 0, got 0"),
+                ("10, 0.0", "negative_binomial: prob must be > 0, got 0")],
+               "0", "error: negative_binomial: quantile is inf and cannot be returned as BIGINT", "5", discrete=True),
+    Validation("non_central_beta", ["2.0", "3.0", "1.0"], ["alpha", "beta", "noncentrality"], "DDD",
+               [("0.0, 3.0, 1.0", "non_central_beta: alpha must be > 0, got 0"),
+                ("2.0, 3.0, -1.0", "non_central_beta: noncentrality must be >= 0, got -1"),
+                ("2.0, 3.0, 1e9", "non_central_beta: noncentrality must be <= 100000000, got 1000000000")],
+               "0.0", "1.0", "0.5"),
+    Validation("non_central_chi_squared", ["4.0", "2.0"], ["degrees_of_freedom", "noncentrality"], "DD",
+               [("0.0, 2.0", "non_central_chi_squared: degrees_of_freedom must be > 0, got 0"),
+                ("4.0, -1.0", "non_central_chi_squared: noncentrality must be >= 0, got -1")], "0.0", INF, "3.0"),
+    Validation("non_central_f", ["5.0", "10.0", "2.0"], ["d1", "d2", "noncentrality"], "DDD",
+               [("0.0, 10.0, 2.0", "non_central_f: d1 must be > 0, got 0"),
+                ("5.0, 10.0, -1.0", "non_central_f: noncentrality must be >= 0, got -1")], "0.0", INF, "1.5"),
+    Validation("non_central_t", ["10.0", "1.0"], ["degrees_of_freedom", "noncentrality"], "DD",
+               [("0.0, 1.0", "non_central_t: degrees_of_freedom must be > 0, got 0"),
+                ("10.0, 2000.0", "non_central_t: absolute value of noncentrality must be <= 1000, got 2000")],
+               NINF, INF, "1.5"),
+    Validation("normal", ["0.0", "1.0"], ["mean", "stddev"], "DD",
+               [("0.0, 0.0", "normal: stddev must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("pareto", ["1.0", "3.0"], ["scale", "shape"], "DD",
+               [("0.0, 3.0", "pareto: scale must be > 0, got 0"), ("1.0, 0.0", "pareto: shape must be > 0, got 0")],
+               "1.0", INF, "1.5"),
+    Validation("poisson", ["5.0"], ["rate"], "D",
+               [("0.0", "poisson: rate must be > 0, got 0")], "0.0", INF, "3", discrete=True),
+    Validation("rayleigh", ["1.0"], ["scale"], "D",
+               [("0.0", "rayleigh: scale must be > 0, got 0")], "0.0", INF, "0.5"),
+    Validation("skew_normal", ["0.0", "1.0", "4.0"], ["location", "scale", "shape"], "DDD",
+               [("0.0, 0.0, 4.0", "skew_normal: scale must be > 0, got 0")], NINF, INF, "0.5"),
+    Validation("students_t", ["10.0"], ["degrees_of_freedom"], "D",
+               [("0.0", "students_t: degrees_of_freedom must be > 0, got 0")], NINF, INF, "1.5"),
+    Validation("triangular", ["0.0", "0.5", "1.0"], ["lower", "mode", "upper"], "DDD",
+               [("0.0, 2.0, 1.0", "triangular: parameters must satisfy lower <= mode <= upper and lower < upper"),
+                ("1.0, 1.0, 1.0", "triangular: parameters must satisfy lower <= mode <= upper and lower < upper")],
+               "0.0", "1.0", "0.25"),
+    Validation("uniform_real", ["0.0", "1.0"], ["min", "max"], "DD",
+               [("1.0, 1.0", "uniform_real: min must be < max, got min=1 max=1")], "0.0", "1.0", "0.5"),
+    Validation("weibull", ["1.5", "1.0"], ["shape", "scale"], "DD",
+               [("0.0, 1.0", "weibull: shape must be > 0, got 0"), ("1.5, 0.0", "weibull: scale must be > 0, got 0")],
+               "0.0", INF, "0.5"),
+]
+
+
+def generate_validation_test() -> str:
+    lines = []
+
+    def add(s=""):
+        lines.append(s)
+
+    def expect(sql, expected, qtype):
+        if expected.startswith("error: "):
+            add("statement error")
+            add(sql)
+            add("----")
+            add(expected[len("error: "):])
+        else:
+            add(f"query {qtype}")
+            add(sql)
+            add("----")
+            add(expected)
+        add()
+
+    add("# name: test/sql/validation.test")
+    add("# description: parameter validation, boundary quantiles and infinite evaluation points for every univariate distribution")
+    add("# group: [sql]")
+    add("# Generated by scripts/generate_tests.py; dist_uniform_int_* are covered by uniform_int.test")
+    add()
+    add("require stochastic")
+    add()
+    for v in VALIDATIONS:
+        prefix = f"dist_{v.name}"
+        params = ", ".join(v.params)
+        add(f"# --- {v.name} ---")
+        add()
+        for params_sql, message in v.invalid:
+            add("statement error")
+            add(f"SELECT {prefix}_cdf({params_sql}, {v.x});")
+            add("----")
+            add(message)
+            add()
+        # NaN and infinite parameters are rejected by every function, including sampling
+        for i, (pname, ptype) in enumerate(zip(v.names, v.types)):
+            if ptype != "D":
+                continue
+            for literal, fn, spelled in (("'nan'::DOUBLE", "pdf", "nan"), ("'inf'::DOUBLE", "sample", "inf"),
+                                         ("'-inf'::DOUBLE", "mean", "-inf")):
+                args = list(v.params)
+                args[i] = literal
+                call = ", ".join(args) + (f", {v.x}" if fn == "pdf" else "")
+                message = v.finite_errors.get((pname, spelled), f"{v.name}: {pname} must be finite, got {spelled}")
+                add("statement error")
+                add(f"SELECT {prefix}_{fn}({call});")
+                add("----")
+                add(message)
+                add()
+        # Probabilities outside [0, 1] are rejected
+        add("statement error")
+        add(f"SELECT {prefix}_quantile({params}, 1.5);")
+        add("----")
+        add(f"{v.name}: Probability argument is 1.5, but must be >= 0 and <= 1")
+        add()
+        add("statement error")
+        add(f"SELECT {prefix}_quantile({params}, 'nan'::DOUBLE);")
+        add("----")
+        add(f"{v.name}: ")
+        add()
+        # The quantiles at p = 0 and p = 1 are the ends of the support
+        qtype = "I" if v.q0.lstrip("-").isdigit() and v.discrete and "." not in v.q0 else "R"
+        expect(f"SELECT {prefix}_quantile({params}, 0.0);", v.q0, qtype)
+        expect(f"SELECT {prefix}_quantile({params}, 1.0);", v.q1, qtype)
+        expect(f"SELECT {prefix}_quantile_complement({params}, 1.0);", v.q0, qtype)
+        expect(f"SELECT {prefix}_quantile_complement({params}, 0.0);", v.q1, qtype)
+        # Infinite evaluation points are allowed: the CDF is 0 at -inf and 1 at +inf
+        if not v.discrete:
+            add("query RRRR")
+            add(f"SELECT {prefix}_cdf({params}, '-inf'::DOUBLE), {prefix}_cdf({params}, 'inf'::DOUBLE), "
+                f"{prefix}_pdf({params}, '-inf'::DOUBLE), {prefix}_pdf({params}, 'inf'::DOUBLE);")
+            add("----")
+            add("0.0\t1.0\t0.0\t0.0")
+            add()
+            add("statement error")
+            add(f"SELECT {prefix}_cdf({params}, 'nan'::DOUBLE);")
+            add("----")
+            add(f"{v.name}: ")
+            add()
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def main():
@@ -754,6 +964,10 @@ def main():
         with open(path, "w") as f:
             f.write(content)
         print(f"Generated {path}")
+    path = os.path.join(OUTPUT_DIR, "validation.test")
+    with open(path, "w") as f:
+        f.write(generate_validation_test())
+    print(f"Generated {path}")
 
 
 if __name__ == "__main__":

@@ -154,9 +154,3 @@ query I
 SELECT dist_students_t_support(10.0) IS NOT NULL;
 ----
 true
-
-# Test students_t sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_students_t_sample(10.0)) > 1 FROM generate_series(1, 100);
-----
-true

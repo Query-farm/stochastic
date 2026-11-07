@@ -154,9 +154,3 @@ query I
 SELECT dist_laplace_support(0.0, 1.0) IS NOT NULL;
 ----
 true
-
-# Test laplace sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_laplace_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
-----
-true

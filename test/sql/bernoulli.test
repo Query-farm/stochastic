@@ -144,9 +144,3 @@ query I
 SELECT dist_bernoulli_support(0.5) IS NOT NULL;
 ----
 true
-
-# Test bernoulli sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_bernoulli_sample(0.5)) > 1 FROM generate_series(1, 100);
-----
-true

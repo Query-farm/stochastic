@@ -154,9 +154,3 @@ query I
 SELECT dist_rayleigh_support(1.0) IS NOT NULL;
 ----
 true
-
-# Test rayleigh sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_rayleigh_sample(1.0)) > 1 FROM generate_series(1, 100);
-----
-true

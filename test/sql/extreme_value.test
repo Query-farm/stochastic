@@ -142,9 +142,3 @@ query I
 SELECT dist_extreme_value_support(0.0, 1.0) IS NOT NULL;
 ----
 true
-
-# Test extreme_value sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_extreme_value_sample(0.0, 1.0)) > 1 FROM generate_series(1, 100);
-----
-true

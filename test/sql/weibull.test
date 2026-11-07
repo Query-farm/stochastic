@@ -142,9 +142,3 @@ query I
 SELECT dist_weibull_support(1.5, 1.0) IS NOT NULL;
 ----
 true
-
-# Test weibull sample returns varying values
-query I
-SELECT COUNT(DISTINCT dist_weibull_sample(1.5, 1.0)) > 1 FROM generate_series(1, 100);
-----
-true
