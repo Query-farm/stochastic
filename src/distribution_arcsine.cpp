@@ -16,6 +16,8 @@ struct ArcsineSpec : DistributionSpecBase {
 	static constexpr const char *example_x = "0.25";
 
 	static void Validate(double min, double max) {
+		RequireFinite(name, "min", min);
+		RequireFinite(name, "max", max);
 		if (!(min < max)) {
 			throw InvalidInputException("%s: min must be < max, got min=%s max=%s", name, FormatParameter(min),
 			                            FormatParameter(max));

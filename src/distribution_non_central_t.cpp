@@ -25,6 +25,7 @@ struct NonCentralTSpec : DistributionSpecBase {
 	static void Validate(double degrees_of_freedom, double noncentrality) {
 		RequirePositive(name, "degrees_of_freedom", degrees_of_freedom);
 		// Boost's series and searches take too long or do not converge beyond this
+		RequireFinite(name, "noncentrality", noncentrality);
 		RequireAtMost(name, "absolute value of noncentrality", std::abs(noncentrality), 1000.0);
 	}
 };

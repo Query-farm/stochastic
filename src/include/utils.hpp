@@ -734,6 +734,84 @@ double DiscreteQuantile(const Dist &dist, double p, bool complement) {
 	return high;
 }
 
+//! Boost gives an unbounded end of a support or range as the largest DOUBLE, and an open lower end at 0 as the
+//! smallest positive DOUBLE. These are reported as infinity and 0.
+inline double NormalizeSupportEnd(double value) {
+	if (std::abs(value) >= std::numeric_limits<double>::max()) {
+		return std::copysign(std::numeric_limits<double>::infinity(), value);
+	}
+	if (value > 0 && value <= std::numeric_limits<double>::min()) {
+		return 0;
+	}
+	return value;
+}
+
+inline std::pair<double, double> NormalizeInterval(const std::pair<double, double> &interval) {
+	return {NormalizeSupportEnd(interval.first), NormalizeSupportEnd(interval.second)};
+}
+
+enum class SupportPosition { INSIDE, BELOW, ABOVE };
+
+//! Where x lies relative to the support. An infinite x is always below or above it, even when the support is
+//! unbounded, so the density and cumulative functions return their limits there instead of calling Boost, which
+//! rejects such points for many distributions. NaN is left to Boost to reject.
+template <class Dist>
+SupportPosition LocateInSupport(const Dist &dist, double x) {
+	if (std::isnan(x)) {
+		return SupportPosition::INSIDE;
+	}
+	const auto support = NormalizeInterval(boost::math::support(dist));
+	if (x < support.first || x == -std::numeric_limits<double>::infinity()) {
+		return SupportPosition::BELOW;
+	}
+	if (x > support.second || x == std::numeric_limits<double>::infinity()) {
+		return SupportPosition::ABOVE;
+	}
+	return SupportPosition::INSIDE;
+}
+
+//! The point a cumulative function of the distribution is evaluated at: a discrete distribution only takes
+//! integer values, so P(X <= x) = P(X <= floor(x)). Boost would otherwise interpolate between integers.
+template <class Spec>
+double CumulativePoint(double x) {
+	return Spec::discrete ? std::floor(x) : x;
+}
+
+//! Whether a discrete distribution can take the value x (its PMF is 0 at non-integers).
+template <class Spec>
+bool IsAttainable(double x) {
+	return !Spec::discrete || std::isnan(x) || x == std::floor(x);
+}
+
+//! Evaluates a cumulative function, which takes its limits outside the support: e.g. P(X <= x) is 0 below it and
+//! 1 above it.
+template <class Spec, class Dist, class F>
+double EvaluateCumulative(const Dist &dist, double x, double below, double above, F &&evaluate) {
+	switch (LocateInSupport(dist, x)) {
+	case SupportPosition::BELOW:
+		return below;
+	case SupportPosition::ABOVE:
+		return above;
+	default:
+		return evaluate(CumulativePoint<Spec>(x));
+	}
+}
+
+constexpr double STOCHASTIC_INFINITY = std::numeric_limits<double>::infinity();
+
+//! The quantile at p = 0 (or the complement quantile at q = 1) is the lower end of the support, and at p = 1 the
+//! upper end. Returns them without calling Boost, which raises errors or returns wrong values there for some
+//! distributions (skew normal, inverse Gaussian).
+template <class Dist>
+std::optional<double> BoundaryQuantile(const Dist &dist, double p, bool complement) {
+	CheckProbabilityArgument(p);
+	if (p != 0 && p != 1) {
+		return std::nullopt;
+	}
+	const auto support = NormalizeInterval(boost::math::support(dist));
+	return (p == 0) != complement ? support.first : support.second;
+}
+
 //! Converts a quantile to the function's result type. An infinite quantile (e.g. at p = 1 for an unbounded
 //! discrete distribution) cannot be returned as BIGINT.
 template <class Spec, class T>
@@ -766,10 +844,18 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 		RegisterKolmogorovSmirnovTest<Spec>(loader);
 	}
 
+	// Outside the support (including at an infinite x) and at non-integers of discrete distributions the density
+	// is 0
 	auto pdf = [](const auto &dist, double x) -> double {
+		if (LocateInSupport(dist, x) != SupportPosition::INSIDE || !IsAttainable<Spec>(x)) {
+			return 0.0;
+		}
 		return Spec::discrete ? CheckedProbability(Spec::Pdf(dist, x)) : Spec::Pdf(dist, x);
 	};
 	auto log_pdf = [](const auto &dist, double x) -> double {
+		if (LocateInSupport(dist, x) != SupportPosition::INSIDE || !IsAttainable<Spec>(x)) {
+			return -STOCHASTIC_INFINITY;
+		}
 		return Spec::discrete ? CheckedLogProbability(Spec::LogPdf(dist, x)) : Spec::LogPdf(dist, x);
 	};
 	RegisterEvaluation<Spec, double, X>(
@@ -794,13 +880,18 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "cdf",
-	    [](const auto &dist, double x) -> double { return CheckedProbability(boost::math::cdf(dist, x)); },
+	    [](const auto &dist, double x) -> double {
+		    return EvaluateCumulative<Spec>(dist, x, 0.0, 1.0,
+		                                    [&](double at) { return CheckedProbability(boost::math::cdf(dist, at)); });
+	    },
 	    {"Computes the cumulative distribution function (CDF) of the " + text + ", P(X <= x).", with_x, "cumulative"},
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "cdf_complement",
 	    [](const auto &dist, double x) -> double {
-		    return CheckedProbability(boost::math::cdf(boost::math::complement(dist, x)));
+		    return EvaluateCumulative<Spec>(dist, x, 1.0, 0.0, [&](double at) {
+			    return CheckedProbability(boost::math::cdf(boost::math::complement(dist, at)));
+		    });
 	    },
 	    {"Computes the complementary cumulative distribution function (survival function) of the " + text +
 	         ", P(X > x).",
@@ -808,13 +899,20 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "log_cdf",
-	    [](const auto &dist, double x) -> double { return CheckedLogProbability(Spec::LogCdf(dist, x)); },
+	    [](const auto &dist, double x) -> double {
+		    return EvaluateCumulative<Spec>(dist, x, -STOCHASTIC_INFINITY, 0.0,
+		                                    [&](double at) { return CheckedLogProbability(Spec::LogCdf(dist, at)); });
+	    },
 	    {"Computes the natural logarithm of the cumulative distribution function (CDF) of the " + text + ".", with_x,
 	     "cumulative"},
 	    x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "log_cdf_complement",
-	    [](const auto &dist, double x) -> double { return CheckedLogProbability(Spec::LogCdfComplement(dist, x)); },
+	    [](const auto &dist, double x) -> double {
+		    return EvaluateCumulative<Spec>(dist, x, 0.0, -STOCHASTIC_INFINITY, [&](double at) {
+			    return CheckedLogProbability(Spec::LogCdfComplement(dist, at));
+		    });
+	    },
 	    {"Computes the natural logarithm of the survival function of the " + text + ", log P(X > x).", with_x,
 	     "cumulative"},
 	    x_param);
@@ -825,7 +923,8 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 		    if constexpr (Spec::discrete) {
 			    return ConvertQuantile<Spec, quantile_t>(DiscreteQuantile<Spec>(dist, p, false));
 		    } else {
-			    return ConvertQuantile<Spec, quantile_t>(Spec::Quantile(dist, p));
+			    const auto boundary = BoundaryQuantile(dist, p, false);
+			    return ConvertQuantile<Spec, quantile_t>(boundary ? *boundary : Spec::Quantile(dist, p));
 		    }
 	    },
 	    {"Computes the quantile function (inverse CDF) of the " + text +
@@ -838,7 +937,8 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 		    if constexpr (Spec::discrete) {
 			    return ConvertQuantile<Spec, quantile_t>(DiscreteQuantile<Spec>(dist, p, true));
 		    } else {
-			    return ConvertQuantile<Spec, quantile_t>(Spec::QuantileComplement(dist, p));
+			    const auto boundary = BoundaryQuantile(dist, p, true);
+			    return ConvertQuantile<Spec, quantile_t>(boundary ? *boundary : Spec::QuantileComplement(dist, p));
 		    }
 	    },
 	    {"Computes the complementary quantile function of the " + text +
@@ -847,12 +947,27 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	    p_param);
 
 	RegisterEvaluation<Spec, double, X>(
-	    loader, "hazard", [](const auto &dist, double x) -> double { return Spec::Hazard(dist, x); },
+	    loader, "hazard",
+	    [](const auto &dist, double x) -> double {
+		    switch (LocateInSupport(dist, x)) {
+		    case SupportPosition::BELOW:
+			    return 0.0;
+		    case SupportPosition::ABOVE:
+			    throw InvalidInputException("%s: the hazard is undefined above the support, got x = %s", Spec::name,
+			                                FormatParameter(x));
+		    default:
+			    return IsAttainable<Spec>(x) ? Spec::Hazard(dist, x) : 0.0;
+		    }
+	    },
 	    {"Computes the hazard function of the " + text + " at x.", with_x, "hazard"}, x_param);
 	RegisterEvaluation<Spec, double, X>(
 	    loader, "chf",
 	    // -log(survival function), which rounding can make slightly negative
-	    [](const auto &dist, double x) -> double { return 0.0 - CheckedLogProbability(-boost::math::chf(dist, x)); },
+	    [](const auto &dist, double x) -> double {
+		    return EvaluateCumulative<Spec>(dist, x, 0.0, STOCHASTIC_INFINITY, [&](double at) {
+			    return 0.0 - CheckedLogProbability(-boost::math::chf(dist, at));
+		    });
+	    },
 	    {"Computes the cumulative hazard function of the " + text + " at x.", with_x, "hazard"}, x_param);
 
 	using Property = std::optional<double>;
@@ -889,12 +1004,12 @@ void RegisterStandardDistribution(ExtensionLoader &loader) {
 	    {"Returns the excess kurtosis of the " + text + "." + undefined, params, "property"});
 
 	using Interval = std::pair<double, double>;
-	RegisterEvaluation<Spec, Interval>(loader, "range",
-	                                   [](const auto &dist) -> Interval { return boost::math::range(dist); },
-	                                   {"Returns the range of the " + text + " as [min, max].", params, "property"});
-	RegisterEvaluation<Spec, Interval>(loader, "support",
-	                                   [](const auto &dist) -> Interval { return boost::math::support(dist); },
-	                                   {"Returns the support of the " + text + " as [min, max].", params, "property"});
+	RegisterEvaluation<Spec, Interval>(
+	    loader, "range", [](const auto &dist) -> Interval { return NormalizeInterval(boost::math::range(dist)); },
+	    {"Returns the range of the " + text + " as [min, max].", params, "property"});
+	RegisterEvaluation<Spec, Interval>(
+	    loader, "support", [](const auto &dist) -> Interval { return NormalizeInterval(boost::math::support(dist)); },
+	    {"Returns the support of the " + text + " as [min, max].", params, "property"});
 }
 
 } // namespace duckdb
